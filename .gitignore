@@ -17,6 +17,7 @@ design-samples/
 designs/
 *.png
 !public/*.png
+!public/**/*.png
 
 # Environment variables
 .env

@@ -13,8 +13,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
       manifest: {
-        name: '주식 매매 일지',
-        short_name: '매매일지',
+        name: 'RD-diary',
+        short_name: 'RD-diary',
         description: '주식 매매를 기록하고 분석하는 개인용 앱',
         theme_color: '#0A0A0B',
         background_color: '#0A0A0B',
