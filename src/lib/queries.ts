@@ -78,6 +78,11 @@ export async function insertTrade(params: InsertTradeParams): Promise<void> {
   if (error) throw new Error(error.message)
 }
 
+export async function deleteTrade(id: string): Promise<void> {
+  const { error } = await db.from('trades').delete().eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
 export interface HoldingRow {

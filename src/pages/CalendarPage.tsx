@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { fetchMonthTrades } from '@/lib/queries'
+import { fetchMonthTrades, deleteTrade } from '@/lib/queries'
 import type { MonthTradeRow } from '@/lib/queries'
 import { useCalendarSettings } from '@/hooks/useCalendarSettings'
 import type { CurrencyThresholds, CalendarThresholds } from '@/hooks/useCalendarSettings'
@@ -62,6 +62,21 @@ export function CalendarPage() {
 
   const { thresholds } = useCalendarSettings()
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  async function handleDelete(id: string) {
+    setDeleting(true)
+    try {
+      await deleteTrade(id)
+      setTrades(prev => prev.filter(t => t.id !== id))
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setDeleting(false)
+      setConfirmDeleteId(null)
+    }
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -260,31 +275,64 @@ export function CalendarPage() {
                       isActive && 'ring-1 ring-primary/30'
                     )}>
                       {items.map((t, i) => (
-                        <div
-                          key={t.id}
-                          className={cn(
-                            'flex items-center gap-3 px-4 py-3',
-                            i < items.length - 1 && 'border-b border-border'
-                          )}
-                        >
-                          <span className={cn(
-                            'w-9 rounded-full py-0.5 text-center text-xs font-bold',
-                            t.tradeType === 'buy' ? 'bg-buy/10 text-buy' : 'bg-sell/10 text-sell'
-                          )}>
-                            {t.tradeType === 'buy' ? '매수' : '매도'}
-                          </span>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-foreground">
-                              {t.stockName}{' '}
-                              <span className="text-xs text-muted-foreground">{t.ticker}</span>
+                        <div key={t.id}>
+                          <div
+                            className={cn(
+                              'flex items-center gap-3 px-4 py-3',
+                              i < items.length - 1 && confirmDeleteId !== t.id && 'border-b border-border'
+                            )}
+                          >
+                            <span className={cn(
+                              'w-9 rounded-full py-0.5 text-center text-xs font-bold',
+                              t.tradeType === 'buy' ? 'bg-buy/10 text-buy' : 'bg-sell/10 text-sell'
+                            )}>
+                              {t.tradeType === 'buy' ? '매수' : '매도'}
+                            </span>
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-foreground">
+                                {t.stockName}{' '}
+                                <span className="text-xs text-muted-foreground">{t.ticker}</span>
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {t.qty % 1 === 0 ? t.qty : t.qty.toFixed(4)}주 · {t.categoryName ?? '—'}
+                              </p>
+                            </div>
+                            <p className="tabular text-sm font-semibold text-foreground">
+                              {formatAmount(t)}
                             </p>
-                            <p className="text-xs text-muted-foreground">
-                              {t.qty % 1 === 0 ? t.qty : t.qty.toFixed(4)}주 · {t.categoryName ?? '—'}
-                            </p>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteId(confirmDeleteId === t.id ? null : t.id)}
+                              className="ml-1 flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                            >
+                              <Trash2 size={14} />
+                            </button>
                           </div>
-                          <p className="tabular text-sm font-semibold text-foreground">
-                            {formatAmount(t)}
-                          </p>
+                          {confirmDeleteId === t.id && (
+                            <div className={cn(
+                              'flex items-center justify-between bg-destructive/5 px-4 py-2',
+                              i < items.length - 1 && 'border-b border-border'
+                            )}>
+                              <span className="text-xs text-destructive">이 거래를 삭제할까요?</span>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeleteId(null)}
+                                  className="rounded-lg px-3 py-1 text-xs text-muted-foreground hover:bg-muted"
+                                >
+                                  취소
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={deleting}
+                                  onClick={() => handleDelete(t.id)}
+                                  className="rounded-lg bg-destructive px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
+                                >
+                                  {deleting ? '삭제 중...' : '삭제'}
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
