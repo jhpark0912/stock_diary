@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# Design reference files
+design-samples/
+designs/
+*.png
+!public/*.png
+
 # Environment variables
 .env
 .env.*
