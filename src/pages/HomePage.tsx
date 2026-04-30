@@ -3,25 +3,17 @@ import { TrendingUp, TrendingDown, Sun, Moon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { fetchHoldings, fetchRecentTrades, fetchRealizedReturns } from '@/lib/queries'
 import type { HoldingRow, RecentTradeRow, RealizedReturnRow } from '@/lib/queries'
+import { useStockPrices } from '@/hooks/useStockPrices'
+import type { StockQuote } from '@/types/stockPrice'
 
 function formatUSD(val: number) {
   return `$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 function formatKRW(val: number) {
-  return `₩${val.toLocaleString('ko-KR')}`
+  return `₩${Math.round(val).toLocaleString('ko-KR')}`
 }
 function formatCurrency(val: number, currency: 'USD' | 'KRW') {
   return currency === 'USD' ? formatUSD(val) : formatKRW(val)
-}
-
-type MarketSummary = { cost: number; count: number }
-
-function calcMarketSummary(holdings: HoldingRow[], currency: 'USD' | 'KRW'): MarketSummary {
-  const filtered = holdings.filter(h => h.currency === currency)
-  return {
-    cost:  filtered.reduce((a, h) => a + h.netQty * h.avgBuyPrice, 0),
-    count: filtered.length,
-  }
 }
 
 /** 티커 문자열 → 결정적 HSL 색상 */
@@ -32,26 +24,212 @@ function tickerColor(ticker: string): string {
   return `hsl(${hue}, 45%, 45%)`
 }
 
-function ReturnBadge({ pct }: { pct: number | null }) {
-  if (pct === null) return <span className="text-xs text-muted-foreground">-</span>
-  const positive = pct >= 0
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-medium',
-        positive ? 'bg-profit/10 text-profit' : 'bg-loss/10 text-loss'
-      )}
-    >
-      {positive ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
-      실현 {positive ? '+' : ''}{pct.toFixed(1)}%
-    </span>
-  )
-}
-
 function todayString() {
   const d = new Date()
   const week = ['일', '월', '화', '수', '목', '금', '토']
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 ${week[d.getDay()]}요일`
+}
+
+function MarketSummaryCard({
+  label,
+  holdings,
+  currency,
+  quotes,
+}: {
+  label: string
+  holdings: HoldingRow[]
+  currency: 'USD' | 'KRW'
+  quotes: Record<string, StockQuote>
+}) {
+  const filtered = holdings.filter(h => h.currency === currency)
+  if (filtered.length === 0) return null
+
+  let costBasis    = 0
+  let currentValue = 0
+  let hasLiveData  = false
+
+  for (const h of filtered) {
+    const cost = h.netQty * h.avgBuyPrice
+    costBasis += cost
+    const yahooSym = h.market === 'KR' ? `${h.ticker}.KS` : h.ticker
+    const q = quotes[yahooSym]
+    if (q) {
+      currentValue += h.netQty * q.price
+      hasLiveData = true
+    } else {
+      currentValue += cost
+    }
+  }
+
+  const pnl    = currentValue - costBasis
+  const pnlPct = costBasis > 0 ? (pnl / costBasis) * 100 : 0
+  const up     = pnl >= 0
+
+  // 장 상태
+  const marketStates = filtered.map(h => {
+    const sym = h.market === 'KR' ? `${h.ticker}.KS` : h.ticker
+    return quotes[sym]?.marketState
+  }).filter(Boolean)
+  const isOpen = marketStates.some(s => s === 'REGULAR')
+
+  return (
+    <div className="card-shadow rounded-2xl bg-card p-5">
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <div className="flex items-center gap-1.5">
+          <span className={cn('h-1.5 w-1.5 rounded-full', isOpen ? 'bg-profit' : 'bg-muted-foreground/40')} />
+          <span className="text-[10px] text-muted-foreground">{isOpen ? '장중' : '장외'}</span>
+        </div>
+      </div>
+      <p className="tabular text-[26px] font-extrabold leading-tight tracking-tight text-foreground">
+        {formatCurrency(currentValue, currency)}
+      </p>
+      <p className="text-xs text-muted-foreground mt-0.5 tabular">
+        투자원금 {formatCurrency(costBasis, currency)}
+      </p>
+      {hasLiveData && (
+        <span
+          className={cn(
+            'mt-2 inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold',
+            up ? 'bg-profit/10 text-profit' : 'bg-loss/10 text-loss',
+          )}
+        >
+          {up ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+          {up ? '+' : ''}{formatCurrency(pnl, currency)} ({up ? '+' : ''}{pnlPct.toFixed(1)}%)
+        </span>
+      )}
+      <div className="mt-2 flex items-center gap-2">
+        <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+          {filtered.length}종목 보유
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function HoldingGroup({
+  title,
+  holdings,
+  quotes,
+  realizedReturnMap,
+  groupType,
+}: {
+  title: string
+  holdings: HoldingRow[]
+  quotes: Record<string, StockQuote>
+  realizedReturnMap: Map<string, RealizedReturnRow>
+  groupType: 'gain' | 'loss' | 'neutral'
+}) {
+  if (holdings.length === 0) return null
+
+  // 그룹 소계 (미실현 손익)
+  const groupPnl = holdings.reduce((sum, h) => {
+    const sym = h.market === 'KR' ? `${h.ticker}.KS` : h.ticker
+    const q   = quotes[sym]
+    if (!q) return sum
+    return sum + (q.price - h.avgBuyPrice) * h.netQty
+  }, 0)
+
+  const hasLiveGroup = holdings.some(h => {
+    const sym = h.market === 'KR' ? `${h.ticker}.KS` : h.ticker
+    return !!quotes[sym]
+  })
+
+  const color = groupType === 'gain' ? 'text-profit' : groupType === 'loss' ? 'text-loss' : 'text-muted-foreground'
+  const dotColor = groupType === 'gain' ? 'bg-profit' : groupType === 'loss' ? 'bg-loss' : 'bg-muted-foreground/40'
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2 px-1">
+        <span className={cn('h-2 w-2 rounded-full', dotColor)} />
+        <span className={cn('text-xs font-bold', color)}>
+          {title} ({holdings.length})
+        </span>
+        {hasLiveGroup && groupType !== 'neutral' && (
+          <span className={cn('ml-auto text-xs font-semibold', color)}>
+            소계 {groupPnl >= 0 ? '+' : ''}
+            {/* 혼합 통화는 원화/달러 각각 */}
+            {holdings[0].currency === 'KRW'
+              ? formatKRW(groupPnl)
+              : formatUSD(groupPnl)}
+          </span>
+        )}
+      </div>
+      <div className="flex flex-col gap-2">
+        {holdings.map(h => <HoldingCard key={h.stockId} h={h} quotes={quotes} realizedReturnMap={realizedReturnMap} />)}
+      </div>
+    </div>
+  )
+}
+
+function HoldingCard({
+  h,
+  quotes,
+  realizedReturnMap,
+}: {
+  h: HoldingRow
+  quotes: Record<string, StockQuote>
+  realizedReturnMap: Map<string, RealizedReturnRow>
+}) {
+  const yahooSym  = h.market === 'KR' ? `${h.ticker}.KS` : h.ticker
+  const q         = quotes[yahooSym]
+  const color     = tickerColor(h.ticker)
+  const badgeLabel = h.ticker.length <= 6 ? h.ticker : h.stockName.slice(0, 2)
+  const realized  = realizedReturnMap.get(h.stockId)
+
+  const unrealizedPnl = q ? (q.price - h.avgBuyPrice) * h.netQty : null
+  const unrealizedPct = q && h.avgBuyPrice > 0 ? ((q.price - h.avgBuyPrice) / h.avgBuyPrice) * 100 : null
+  const up = unrealizedPct !== null ? unrealizedPct >= 0 : null
+
+  return (
+    <div className="card-shadow flex items-center justify-between rounded-xl bg-card px-4 py-3">
+      <div className="flex items-center gap-3">
+        <span
+          className="flex h-8 items-center justify-center rounded-md px-2 text-[11px] font-bold text-white"
+          style={{ backgroundColor: color }}
+        >
+          {badgeLabel}
+        </span>
+        <div>
+          <p className="text-sm font-semibold text-foreground">{h.stockName}</p>
+          <p className="text-xs text-muted-foreground">
+            {h.netQty % 1 === 0 ? h.netQty : h.netQty.toFixed(4)}주 · 평단 {formatCurrency(h.avgBuyPrice, h.currency)}
+          </p>
+        </div>
+      </div>
+      <div className="text-right">
+        {q ? (
+          <>
+            <p className="tabular text-sm font-semibold text-foreground">
+              {formatCurrency(q.price, h.currency)}
+            </p>
+            {unrealizedPnl !== null && unrealizedPct !== null && (
+              <p className={cn('tabular text-xs font-medium mt-0.5', up ? 'text-profit' : 'text-loss')}>
+                {up ? '+' : ''}{formatCurrency(unrealizedPnl, h.currency)} ({up ? '+' : ''}{unrealizedPct.toFixed(1)}%)
+              </p>
+            )}
+          </>
+        ) : (
+          <>
+            <p className="tabular text-sm font-semibold text-foreground">
+              {formatCurrency(Math.round(h.netQty * h.avgBuyPrice), h.currency)}
+            </p>
+            {realized && (
+              <span
+                className={cn(
+                  'inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-medium',
+                  realized.returnPct >= 0 ? 'bg-profit/10 text-profit' : 'bg-loss/10 text-loss',
+                )}
+              >
+                {realized.returnPct >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+                실현 {realized.returnPct >= 0 ? '+' : ''}{realized.returnPct.toFixed(1)}%
+              </span>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export function HomePage() {
@@ -60,6 +238,8 @@ export function HomePage() {
   const [recentTrades, setRecentTrades]     = useState<RecentTradeRow[]>([])
   const [realizedReturns, setRealizedReturns] = useState<RealizedReturnRow[]>([])
   const [loading, setLoading]               = useState(true)
+
+  const { quotes, stale, lastUpdated } = useStockPrices(holdings)
 
   useEffect(() => {
     Promise.all([fetchHoldings(), fetchRecentTrades(5), fetchRealizedReturns()])
@@ -74,9 +254,24 @@ export function HomePage() {
     document.documentElement.classList.toggle('dark', next)
   }
 
-  const krw = calcMarketSummary(holdings, 'KRW')
-  const usd = calcMarketSummary(holdings, 'USD')
   const realizedReturnMap = new Map(realizedReturns.map(r => [r.stockId, r]))
+
+  // D 방향: 수익/손실 그룹핑
+  const gainers  = holdings.filter(h => {
+    const sym = h.market === 'KR' ? `${h.ticker}.KS` : h.ticker
+    const q   = quotes[sym]
+    return q ? q.price >= h.avgBuyPrice : false
+  })
+  const losers   = holdings.filter(h => {
+    const sym = h.market === 'KR' ? `${h.ticker}.KS` : h.ticker
+    const q   = quotes[sym]
+    return q ? q.price < h.avgBuyPrice : false
+  })
+  const noQuote  = holdings.filter(h => {
+    const sym = h.market === 'KR' ? `${h.ticker}.KS` : h.ticker
+    return !quotes[sym]
+  })
+  const hasQuotes = Object.keys(quotes).length > 0
 
   return (
     <div className="flex flex-col">
@@ -93,7 +288,6 @@ export function HomePage() {
       </div>
 
       <div className="flex flex-col gap-4 p-5">
-        {/* 날짜 */}
         <p className="text-xs text-muted-foreground">{todayString()}</p>
 
         {loading ? (
@@ -102,95 +296,58 @@ export function HomePage() {
           </div>
         ) : (
           <>
-            {/* 시장별 투자 원금 카드 */}
-            {([
-              { label: '🇰🇷 한국 주식', data: krw, fmt: formatKRW },
-              { label: '🇺🇸 미국 주식', data: usd, fmt: formatUSD },
-            ] as const).map(({ label, data, fmt }) => (
-              <div key={label} className="card-shadow rounded-2xl bg-card p-5">
-                <p className="mb-1 text-xs text-muted-foreground">{label}</p>
-                {data.count === 0 ? (
-                  <p className="mt-2 text-sm text-muted-foreground">보유 종목 없음</p>
-                ) : (
-                  <>
-                    <p className="tabular text-[28px] font-extrabold leading-tight tracking-tight text-foreground">
-                      {fmt(Math.round(data.cost))}
-                    </p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                        {data.count}종목 보유
-                      </span>
-                      <span className="text-xs text-muted-foreground">평균 매수 기준</span>
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
+            {/* 시장별 요약 카드 */}
+            <MarketSummaryCard label="🇰🇷 한국 주식" holdings={holdings} currency="KRW" quotes={quotes} />
+            <MarketSummaryCard label="🇺🇸 미국 주식" holdings={holdings} currency="USD" quotes={quotes} />
 
-            {/* 미니 차트 (정적) */}
-            <div className="card-shadow rounded-2xl bg-card p-4">
-              <p className="mb-2 text-xs text-muted-foreground">1개월 수익률 추이</p>
-              <svg viewBox="0 0 295 60" className="h-[60px] w-full" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="chart-grad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.15" />
-                    <stop offset="100%" stopColor="var(--primary)" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-                <path
-                  d="M0,50 C40,44 80,40 120,30 C160,20 200,26 240,16 C265,10 280,12 295,8"
-                  fill="none" stroke="var(--primary)" strokeWidth="2"
-                />
-                <path
-                  d="M0,50 C40,44 80,40 120,30 C160,20 200,26 240,16 C265,10 280,12 295,8 L295,60 L0,60Z"
-                  fill="url(#chart-grad)"
-                />
-              </svg>
-            </div>
-
-            {/* 보유 종목 */}
+            {/* 보유 종목 — 수익/손실 그룹핑 */}
             <section>
-              <div className="mb-2.5 flex items-center justify-between">
+              <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-base font-semibold text-foreground">
                   보유 종목 {holdings.length}
                 </h2>
+                {lastUpdated && (
+                  <span className={cn('text-[10px]', stale ? 'text-loss' : 'text-muted-foreground')}>
+                    {stale ? '시세 오류 · ' : ''}
+                    {lastUpdated.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} 기준
+                  </span>
+                )}
               </div>
+
               {holdings.length === 0 ? (
                 <div className="card-shadow flex items-center justify-center rounded-2xl bg-card py-10">
                   <p className="text-sm text-muted-foreground">기록하기 탭에서 첫 매매를 추가해 보세요</p>
                 </div>
+              ) : hasQuotes ? (
+                <div className="flex flex-col gap-4">
+                  <HoldingGroup
+                    title="수익"
+                    holdings={gainers}
+                    quotes={quotes}
+                    realizedReturnMap={realizedReturnMap}
+                    groupType="gain"
+                  />
+                  <HoldingGroup
+                    title="손실"
+                    holdings={losers}
+                    quotes={quotes}
+                    realizedReturnMap={realizedReturnMap}
+                    groupType="loss"
+                  />
+                  <HoldingGroup
+                    title="시세 없음"
+                    holdings={noQuote}
+                    quotes={quotes}
+                    realizedReturnMap={realizedReturnMap}
+                    groupType="neutral"
+                  />
+                </div>
               ) : (
+                // 시세 로딩 전: 기존 레이아웃 그대로
                 <div className="flex flex-col gap-3">
-                  {holdings.map((h) => {
-                    const totalCost    = h.netQty * h.avgBuyPrice
-                    const color        = tickerColor(h.ticker)
-                    const badgeLabel   = h.ticker.length <= 6 ? h.ticker : h.stockName.slice(0, 2)
-                    const realized     = realizedReturnMap.get(h.stockId)
-                    return (
-                      <div key={h.stockId} className="card-shadow flex items-center justify-between rounded-xl bg-card px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <span
-                            className="flex h-8 items-center justify-center rounded-md px-2 text-[11px] font-bold text-white"
-                            style={{ backgroundColor: color }}
-                          >
-                            {badgeLabel}
-                          </span>
-                          <div>
-                            <p className="text-sm font-semibold text-foreground">{h.stockName}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {h.netQty % 1 === 0 ? h.netQty : h.netQty.toFixed(4)}주 · 평단 {formatCurrency(h.avgBuyPrice, h.currency)}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="tabular text-sm font-semibold text-foreground">
-                            {formatCurrency(Math.round(totalCost), h.currency)}
-                          </p>
-                          <ReturnBadge pct={realized?.returnPct ?? null} />
-                        </div>
-                      </div>
-                    )
-                  })}
+                  {holdings.map(h => (
+                    <HoldingCard key={h.stockId} h={h} quotes={{}} realizedReturnMap={realizedReturnMap} />
+                  ))}
                 </div>
               )}
             </section>
@@ -209,13 +366,13 @@ export function HomePage() {
                       key={t.id}
                       className={cn(
                         'flex items-center gap-3 px-4 py-3',
-                        i < recentTrades.length - 1 && 'border-b border-border'
+                        i < recentTrades.length - 1 && 'border-b border-border',
                       )}
                     >
                       <span
                         className={cn(
                           'w-9 rounded-full py-0.5 text-center text-xs font-bold',
-                          t.tradeType === 'buy' ? 'bg-buy/10 text-buy' : 'bg-sell/10 text-sell'
+                          t.tradeType === 'buy' ? 'bg-buy/10 text-buy' : 'bg-sell/10 text-sell',
                         )}
                       >
                         {t.tradeType === 'buy' ? '매수' : '매도'}
