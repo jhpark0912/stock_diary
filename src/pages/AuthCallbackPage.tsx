@@ -2,13 +2,10 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 
-type ErrorKind = 'cross-browser' | 'expired' | 'unknown'
+type ErrorKind = 'expired' | 'unknown'
 
 function classifyError(message: string): ErrorKind {
   const msg = message.toLowerCase()
-  if (msg.includes('code verifier') || msg.includes('pkce')) {
-    return 'cross-browser'
-  }
   if (msg.includes('expired') || msg.includes('만료')) {
     return 'expired'
   }
@@ -54,28 +51,23 @@ export function AuthCallbackPage() {
   }, [navigate])
 
   if (errorKind) {
-    const isCrossBrowser = errorKind === 'cross-browser'
-
     return (
       <div className="flex min-h-svh flex-col items-center justify-center gap-5 bg-background px-6 text-center">
-        <div className="text-4xl">{isCrossBrowser ? '🔗' : '⚠️'}</div>
+        <div className="text-4xl">⚠️</div>
 
         <div className="max-w-xs">
-          {isCrossBrowser ? (
+          {errorKind === 'expired' ? (
             <>
-              <p className="font-semibold text-foreground">다른 브라우저에서 링크를 여셨나요?</p>
-              <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-                보안 정책상 로그인을 요청한 브라우저에서만 링크가 동작합니다.
-                <br /><br />
-                대신 <strong>이메일에 있는 6자리 코드</strong>를 로그인 화면에 직접 입력하면
-                어떤 브라우저에서도 로그인할 수 있습니다.
+              <p className="font-semibold text-foreground">인증이 만료되었습니다</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                다시 로그인해 주세요.
               </p>
             </>
           ) : (
             <>
-              <p className="font-semibold text-foreground">링크가 만료되었거나 유효하지 않습니다</p>
+              <p className="font-semibold text-foreground">로그인 중 오류가 발생했습니다</p>
               <p className="mt-2 text-sm text-muted-foreground">
-                링크는 발송 후 1시간 동안만 유효합니다. 새로 요청해 주세요.
+                다시 시도해 주세요.
               </p>
             </>
           )}
