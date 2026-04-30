@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { TrendingUp, TrendingDown, Sun, Moon } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { fetchHoldings, fetchRecentTrades } from '@/lib/queries'
-import type { HoldingRow, RecentTradeRow } from '@/lib/queries'
+import { fetchHoldings, fetchRecentTrades, fetchRealizedReturns } from '@/lib/queries'
+import type { HoldingRow, RecentTradeRow, RealizedReturnRow } from '@/lib/queries'
 
 function formatUSD(val: number) {
   return `$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -32,7 +32,8 @@ function tickerColor(ticker: string): string {
   return `hsl(${hue}, 45%, 45%)`
 }
 
-function ReturnBadge({ pct }: { pct: number }) {
+function ReturnBadge({ pct }: { pct: number | null }) {
+  if (pct === null) return <span className="text-xs text-muted-foreground">-</span>
   const positive = pct >= 0
   return (
     <span
@@ -42,7 +43,7 @@ function ReturnBadge({ pct }: { pct: number }) {
       )}
     >
       {positive ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
-      {positive ? '+' : ''}{pct.toFixed(1)}%
+      실현 {positive ? '+' : ''}{pct.toFixed(1)}%
     </span>
   )
 }
@@ -55,13 +56,14 @@ function todayString() {
 
 export function HomePage() {
   const [dark, setDark] = useState(false)
-  const [holdings, setHoldings]       = useState<HoldingRow[]>([])
-  const [recentTrades, setRecentTrades] = useState<RecentTradeRow[]>([])
-  const [loading, setLoading]         = useState(true)
+  const [holdings, setHoldings]             = useState<HoldingRow[]>([])
+  const [recentTrades, setRecentTrades]     = useState<RecentTradeRow[]>([])
+  const [realizedReturns, setRealizedReturns] = useState<RealizedReturnRow[]>([])
+  const [loading, setLoading]               = useState(true)
 
   useEffect(() => {
-    Promise.all([fetchHoldings(), fetchRecentTrades(5)])
-      .then(([h, t]) => { setHoldings(h); setRecentTrades(t) })
+    Promise.all([fetchHoldings(), fetchRecentTrades(5), fetchRealizedReturns()])
+      .then(([h, t, r]) => { setHoldings(h); setRecentTrades(t); setRealizedReturns(r) })
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
@@ -74,6 +76,7 @@ export function HomePage() {
 
   const krw = calcMarketSummary(holdings, 'KRW')
   const usd = calcMarketSummary(holdings, 'USD')
+  const realizedReturnMap = new Map(realizedReturns.map(r => [r.stockId, r]))
 
   return (
     <div className="flex flex-col">
@@ -159,9 +162,10 @@ export function HomePage() {
               ) : (
                 <div className="flex flex-col gap-3">
                   {holdings.map((h) => {
-                    const totalCost = h.netQty * h.avgBuyPrice
-                    const color = tickerColor(h.ticker)
-                    const badgeLabel = h.ticker.length <= 6 ? h.ticker : h.stockName.slice(0, 2)
+                    const totalCost    = h.netQty * h.avgBuyPrice
+                    const color        = tickerColor(h.ticker)
+                    const badgeLabel   = h.ticker.length <= 6 ? h.ticker : h.stockName.slice(0, 2)
+                    const realized     = realizedReturnMap.get(h.stockId)
                     return (
                       <div key={h.stockId} className="card-shadow flex items-center justify-between rounded-xl bg-card px-4 py-3">
                         <div className="flex items-center gap-3">
@@ -182,7 +186,7 @@ export function HomePage() {
                           <p className="tabular text-sm font-semibold text-foreground">
                             {formatCurrency(Math.round(totalCost), h.currency)}
                           </p>
-                          <ReturnBadge pct={0} />
+                          <ReturnBadge pct={realized?.returnPct ?? null} />
                         </div>
                       </div>
                     )

@@ -192,6 +192,101 @@ export interface MonthTradeRow {
   categoryName: string | null
 }
 
+export interface StockRow {
+  stockId: string
+  ticker: string
+  stockName: string
+  market: Market
+  currency: Currency
+  isHolding: boolean
+  netQty: number
+}
+
+/** stocks 테이블 전체 조회 + 보유 여부 표시 (매매 기록 종목 선택용) */
+export async function fetchAllStocks(): Promise<StockRow[]> {
+  const [{ data: stocks, error }, holdings] = await Promise.all([
+    db.from('stocks').select('id, ticker, stock_name, market').order('created_at', { ascending: false }),
+    fetchHoldings(),
+  ])
+
+  if (error) throw new Error(error.message)
+  if (!stocks?.length) return []
+
+  const holdingMap = new Map(holdings.map(h => [h.stockId, h]))
+
+  return (stocks as any[])
+    .map(s => {
+      const holding = holdingMap.get(s.id)
+      return {
+        stockId:   s.id,
+        ticker:    s.ticker,
+        stockName: s.stock_name,
+        market:    s.market as Market,
+        currency:  (s.market === 'KR' ? 'KRW' : 'USD') as Currency,
+        isHolding: !!holding,
+        netQty:    holding?.netQty ?? 0,
+      }
+    })
+    .sort((a, b) => Number(b.isHolding) - Number(a.isHolding))
+}
+
+export interface RealizedReturnRow {
+  stockId: string
+  ticker: string
+  stockName: string
+  currency: Currency
+  realizedGain: number
+  returnPct: number
+}
+
+/** 종목별 실현 수익률: 매도 기록이 있는 종목만 반환 */
+export async function fetchRealizedReturns(): Promise<RealizedReturnRow[]> {
+  const { data, error } = await db
+    .from('trades')
+    .select('stock_id, trade_type, quantity, price, currency, stocks!inner(id, ticker, stock_name)')
+    .order('trade_date', { ascending: true })
+
+  if (error) throw new Error(error.message)
+  if (!data?.length) return []
+
+  type Acc = {
+    stockId: string; ticker: string; stockName: string; currency: Currency
+    buyQty: number; buyAmt: number; sellQty: number; sellAmt: number
+  }
+  const map = new Map<string, Acc>()
+
+  for (const row of data as any[]) {
+    const s = row.stocks
+    if (!map.has(row.stock_id)) {
+      map.set(row.stock_id, {
+        stockId: s.id, ticker: s.ticker, stockName: s.stock_name,
+        currency: row.currency as Currency,
+        buyQty: 0, buyAmt: 0, sellQty: 0, sellAmt: 0,
+      })
+    }
+    const e = map.get(row.stock_id)!
+    const qty = Number(row.quantity)
+    const price = Number(row.price)
+    if (row.trade_type === 'buy') {
+      e.buyQty += qty
+      e.buyAmt += qty * price
+    } else {
+      e.sellQty += qty
+      e.sellAmt += qty * price
+    }
+  }
+
+  return [...map.values()]
+    .filter(e => e.sellQty > 0 && e.buyQty > 0)
+    .map(e => {
+      const avgBuyPrice = e.buyAmt / e.buyQty
+      const costBasis   = avgBuyPrice * e.sellQty
+      const realizedGain = e.sellAmt - costBasis
+      const returnPct    = costBasis > 0 ? (realizedGain / costBasis) * 100 : 0
+      return { stockId: e.stockId, ticker: e.ticker, stockName: e.stockName, currency: e.currency, realizedGain, returnPct }
+    })
+}
+
 /** 특정 월 매매 기록 (캘린더 페이지용) */
 export async function fetchMonthTrades(year: number, month: number): Promise<MonthTradeRow[]> {
   const m = String(month + 1).padStart(2, '0')
