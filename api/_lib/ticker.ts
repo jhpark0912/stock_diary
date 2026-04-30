@@ -1,4 +1,4 @@
-import type { Market } from '../../src/types/database'
+type Market = 'US' | 'KR'
 
 /**
  * DB 저장 티커(bare) → Yahoo Finance 심볼 변환
