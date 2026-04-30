@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -7,10 +8,14 @@ import { cn } from '@/lib/utils'
 type Step = 'input' | 'sent'
 
 export function LoginPage() {
-  const [email, setEmail] = useState('')
-  const [step, setStep]   = useState<Step>('input')
-  const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState<string | null>(null)
+  const navigate    = useNavigate()
+  const [email, setEmail]   = useState('')
+  const [otp, setOtp]       = useState('')
+  const [step, setStep]     = useState<Step>('input')
+  const [loading, setLoading]   = useState(false)
+  const [verifying, setVerifying] = useState(false)
+  const [error, setError]       = useState<string | null>(null)
+  const [otpError, setOtpError] = useState<string | null>(null)
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault()
@@ -35,9 +40,34 @@ export function LoginPage() {
     }
   }
 
-  async function handleResend() {
+  // 이메일에 포함된 6자리 코드를 이 브라우저에서 직접 입력해 인증
+  async function handleVerifyOtp(e: React.FormEvent) {
+    e.preventDefault()
+    if (!otp.trim()) return
+
+    setVerifying(true)
+    setOtpError(null)
+
+    const { error } = await supabase.auth.verifyOtp({
+      email: email.trim(),
+      token: otp.trim(),
+      type: 'email',
+    })
+
+    setVerifying(false)
+
+    if (error) {
+      setOtpError('코드가 올바르지 않거나 만료되었습니다.')
+    } else {
+      navigate('/', { replace: true })
+    }
+  }
+
+  function handleResend() {
     setStep('input')
+    setOtp('')
     setError(null)
+    setOtpError(null)
   }
 
   return (
@@ -100,31 +130,78 @@ export function LoginPage() {
           </>
         ) : (
           /* 전송 완료 상태 */
-          <div className="flex flex-col items-center gap-4 py-2 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-3xl">
-              ✉️
+          <div className="flex flex-col gap-5 py-2">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-3xl">
+                ✉️
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-foreground">이메일을 확인하세요</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">{email}</span>
+                  <br />로 로그인 링크와 인증 코드를 보냈습니다.
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-foreground">이메일을 확인하세요</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">{email}</span>
-                <br />로 로그인 링크를 보냈습니다.
+
+            {/* 방법 1: 링크 클릭 안내 */}
+            <div className="rounded-xl bg-muted px-4 py-3 text-xs text-muted-foreground">
+              <p className="font-semibold text-foreground">방법 1 — 링크 클릭</p>
+              <p className="mt-1 leading-relaxed">
+                이메일의 <strong>로그인 링크</strong>를 이 브라우저에서 열면 자동으로 로그인됩니다.
+                <br />
+                <span className="text-amber-500 dark:text-amber-400">
+                  다른 브라우저(앱)에서 열면 로그인이 유지되지 않을 수 있습니다.
+                </span>
               </p>
             </div>
-            <div className="mt-2 w-full rounded-xl bg-muted px-4 py-3 text-left text-xs text-muted-foreground">
-              <p className="font-semibold text-foreground">링크가 안 왔나요?</p>
-              <ul className="mt-1 list-disc pl-4 leading-relaxed">
-                <li>스팸 폴더를 확인해 주세요</li>
-                <li>링크는 1시간 후 만료됩니다</li>
-              </ul>
+
+            {/* 방법 2: 코드 직접 입력 */}
+            <div>
+              <p className="mb-2 text-xs font-semibold text-foreground">
+                방법 2 — 인증 코드 직접 입력
+              </p>
+              <p className="mb-3 text-xs text-muted-foreground leading-relaxed">
+                이메일에 있는 <strong>6자리 숫자 코드</strong>를 아래에 입력하세요.
+                어떤 브라우저에서 이메일을 열어도 이 창에서 바로 로그인할 수 있습니다.
+              </p>
+              <form onSubmit={handleVerifyOtp} className="flex flex-col gap-2">
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="\d{6}"
+                  maxLength={6}
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                  placeholder="123456"
+                  className="bg-input text-center text-xl font-bold tracking-widest"
+                />
+                {otpError && (
+                  <p className="text-xs text-destructive">{otpError}</p>
+                )}
+                <Button
+                  type="submit"
+                  disabled={verifying || otp.length !== 6}
+                  variant="outline"
+                  className="w-full"
+                >
+                  {verifying ? '확인 중...' : '코드로 로그인'}
+                </Button>
+              </form>
             </div>
-            <button
-              type="button"
-              onClick={handleResend}
-              className="text-sm text-muted-foreground underline underline-offset-2"
-            >
-              이메일 다시 입력하기
-            </button>
+
+            <div className="border-t border-border pt-1 text-center">
+              <p className="mb-2 text-xs text-muted-foreground">
+                링크·코드는 1시간 후 만료됩니다. 스팸 폴더도 확인해 주세요.
+              </p>
+              <button
+                type="button"
+                onClick={handleResend}
+                className="text-sm text-muted-foreground underline underline-offset-2"
+              >
+                이메일 다시 입력하기
+              </button>
+            </div>
           </div>
         )}
       </div>

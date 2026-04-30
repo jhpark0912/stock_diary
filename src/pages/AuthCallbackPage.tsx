@@ -2,9 +2,23 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 
+type ErrorKind = 'cross-browser' | 'expired' | 'unknown'
+
+function classifyError(message: string): ErrorKind {
+  const msg = message.toLowerCase()
+  if (msg.includes('code verifier') || msg.includes('pkce') || msg.includes('invalid') ) {
+    return 'cross-browser'
+  }
+  if (msg.includes('expired') || msg.includes('만료')) {
+    return 'expired'
+  }
+  return 'unknown'
+}
+
 export function AuthCallbackPage() {
   const navigate = useNavigate()
-  const [error, setError] = useState<string | null>(null)
+  const [errorKind, setErrorKind] = useState<ErrorKind | null>(null)
+  const [errorDetail, setErrorDetail] = useState<string | null>(null)
 
   useEffect(() => {
     const code = new URLSearchParams(window.location.search).get('code')
@@ -13,7 +27,8 @@ export function AuthCallbackPage() {
       // PKCE 플로우: code → session 교환
       supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
         if (error) {
-          setError(error.message)
+          setErrorKind(classifyError(error.message))
+          setErrorDetail(error.message)
         } else {
           navigate('/', { replace: true })
         }
@@ -31,20 +46,44 @@ export function AuthCallbackPage() {
     }
   }, [navigate])
 
-  if (error) {
+  if (errorKind) {
+    const isCrossBrowser = errorKind === 'cross-browser'
+
     return (
-      <div className="flex min-h-svh flex-col items-center justify-center gap-4 bg-background px-6 text-center">
-        <div className="text-3xl">⚠️</div>
-        <div>
-          <p className="font-semibold text-foreground">링크가 만료되었습니다</p>
-          <p className="mt-1 text-sm text-muted-foreground">{error}</p>
+      <div className="flex min-h-svh flex-col items-center justify-center gap-5 bg-background px-6 text-center">
+        <div className="text-4xl">{isCrossBrowser ? '🔗' : '⚠️'}</div>
+
+        <div className="max-w-xs">
+          {isCrossBrowser ? (
+            <>
+              <p className="font-semibold text-foreground">다른 브라우저에서 링크를 여셨나요?</p>
+              <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+                보안 정책상 로그인을 요청한 브라우저에서만 링크가 동작합니다.
+                <br /><br />
+                대신 <strong>이메일에 있는 6자리 코드</strong>를 로그인 화면에 직접 입력하면
+                어떤 브라우저에서도 로그인할 수 있습니다.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-semibold text-foreground">링크가 만료되었거나 유효하지 않습니다</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                링크는 발송 후 1시간 동안만 유효합니다. 새로 요청해 주세요.
+              </p>
+            </>
+          )}
         </div>
+
         <button
           onClick={() => navigate('/login', { replace: true })}
-          className="text-sm text-primary underline underline-offset-2"
+          className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
         >
-          다시 로그인하기
+          로그인 페이지로 돌아가기
         </button>
+
+        {process.env.NODE_ENV === 'development' && errorDetail && (
+          <p className="text-xs text-muted-foreground opacity-50">{errorDetail}</p>
+        )}
       </div>
     )
   }
