@@ -43,7 +43,6 @@ export function LoginPage() {
   // 이메일에 포함된 6자리 코드를 이 브라우저에서 직접 입력해 인증
   async function handleVerifyOtp(e: React.FormEvent) {
     e.preventDefault()
-    if (!otp.trim()) return
 
     setVerifying(true)
     setOtpError(null)

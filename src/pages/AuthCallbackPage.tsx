@@ -6,7 +6,7 @@ type ErrorKind = 'cross-browser' | 'expired' | 'unknown'
 
 function classifyError(message: string): ErrorKind {
   const msg = message.toLowerCase()
-  if (msg.includes('code verifier') || msg.includes('pkce') || msg.includes('invalid') ) {
+  if (msg.includes('code verifier') || msg.includes('pkce')) {
     return 'cross-browser'
   }
   if (msg.includes('expired') || msg.includes('만료')) {
@@ -42,7 +42,14 @@ export function AuthCallbackPage() {
           navigate('/login', { replace: true })
         }
       })
-      return () => subscription.unsubscribe()
+
+      // code도 hash도 없이 직접 접근한 경우 무한 스피너 방지
+      const fallback = setTimeout(() => navigate('/login', { replace: true }), 5000)
+
+      return () => {
+        subscription.unsubscribe()
+        clearTimeout(fallback)
+      }
     }
   }, [navigate])
 
@@ -81,7 +88,7 @@ export function AuthCallbackPage() {
           로그인 페이지로 돌아가기
         </button>
 
-        {process.env.NODE_ENV === 'development' && errorDetail && (
+        {import.meta.env.DEV && errorDetail && (
           <p className="text-xs text-muted-foreground opacity-50">{errorDetail}</p>
         )}
       </div>
