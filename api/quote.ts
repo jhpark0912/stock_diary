@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { fetchQuotes } from './_lib/yahoo.js'
-import { toKQSymbol } from './_lib/ticker.js'
+import { fetchQuotes } from './_lib/yahoo'
+import { toKQSymbol } from './_lib/ticker'
 
 const MAX_SYMBOLS = 20
 
