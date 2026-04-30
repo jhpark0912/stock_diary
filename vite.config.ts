@@ -9,7 +9,22 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    // dev 서버에서 /api/* 요청을 501로 반환 (SPA fallback 방지)
+    {
+      name: 'dev-api-stub',
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          if (req.url?.startsWith('/api/')) {
+            res.writeHead(501, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: 'API not available in dev mode. Use vercel dev.' }))
+            return
+          }
+          next()
+        })
+      },
+    },
     VitePWA({
+      devOptions: { enabled: false },
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
       manifest: {
