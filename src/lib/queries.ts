@@ -35,20 +35,21 @@ export async function upsertStock(
   return data.id as string
 }
 
-/** name + type으로 카테고리 ID 조회 */
-export async function findCategoryId(
-  name: string,
-  tradeType: TradeType,
-): Promise<string | null> {
-  const { data } = await db
-    .from('categories')
-    .select('id')
-    .eq('name', name)
-    .in('type', [tradeType, 'both'])
-    .limit(1)
-    .maybeSingle()
+export interface CategoryOption {
+  id: string
+  name: string
+}
 
-  return (data?.id as string) ?? null
+/** 현재 유저의 카테고리 목록 조회 (tradeType 필터 적용) */
+export async function fetchCategories(tradeType: TradeType): Promise<CategoryOption[]> {
+  const { data, error } = await db
+    .from('categories')
+    .select('id, name')
+    .in('type', [tradeType, 'both'])
+    .order('sort_order', { ascending: true })
+
+  if (error) throw new Error(error.message)
+  return (data ?? []) as CategoryOption[]
 }
 
 export interface InsertTradeParams {
@@ -154,13 +155,14 @@ export interface RecentTradeRow {
   price: number
   currency: Currency
   categoryName: string | null
+  memo: string | null
 }
 
 /** 최근 매매 목록 (홈 페이지용) */
 export async function fetchRecentTrades(limit = 5): Promise<RecentTradeRow[]> {
   const { data, error } = await db
     .from('trades')
-    .select('id, trade_date, trade_type, quantity, price, currency, stocks!inner(ticker, stock_name), categories(name)')
+    .select('id, trade_date, trade_type, quantity, price, currency, memo, stocks!inner(ticker, stock_name), categories(name)')
     .order('trade_date', { ascending: false })
     .limit(limit)
 
@@ -177,6 +179,7 @@ export async function fetchRecentTrades(limit = 5): Promise<RecentTradeRow[]> {
     price:        Number(row.price),
     currency:     row.currency as Currency,
     categoryName: row.categories?.name ?? null,
+    memo:         row.memo as string | null,
   }))
 }
 
@@ -190,6 +193,7 @@ export interface MonthTradeRow {
   price: number
   currency: Currency
   categoryName: string | null
+  memo: string | null
 }
 
 export interface StockRow {
@@ -296,7 +300,7 @@ export async function fetchMonthTrades(year: number, month: number): Promise<Mon
 
   const { data, error } = await db
     .from('trades')
-    .select('id, trade_date, trade_type, quantity, price, currency, stocks!inner(ticker, stock_name), categories(name)')
+    .select('id, trade_date, trade_type, quantity, price, currency, memo, stocks!inner(ticker, stock_name), categories(name)')
     .gte('trade_date', start)
     .lte('trade_date', end)
     .order('trade_date', { ascending: false })
@@ -314,5 +318,6 @@ export async function fetchMonthTrades(year: number, month: number): Promise<Mon
     price:        Number(row.price),
     currency:     row.currency as Currency,
     categoryName: row.categories?.name ?? null,
+    memo:         row.memo as string | null,
   }))
 }

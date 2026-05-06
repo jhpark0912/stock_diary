@@ -64,6 +64,7 @@ export function CalendarPage() {
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [expandedMemoId, setExpandedMemoId] = useState<string | null>(null)
 
   async function handleDelete(id: string) {
     setDeleting(true)
@@ -278,35 +279,61 @@ export function CalendarPage() {
                         <div key={t.id}>
                           <div
                             className={cn(
-                              'flex items-center gap-3 px-4 py-3',
+                              'flex flex-col',
                               i < items.length - 1 && confirmDeleteId !== t.id && 'border-b border-border'
                             )}
                           >
-                            <span className={cn(
-                              'w-9 rounded-full py-0.5 text-center text-xs font-bold',
-                              t.tradeType === 'buy' ? 'bg-buy/10 text-buy' : 'bg-sell/10 text-sell'
-                            )}>
-                              {t.tradeType === 'buy' ? '매수' : '매도'}
-                            </span>
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-foreground">
-                                {t.stockName}{' '}
-                                <span className="text-xs text-muted-foreground">{t.ticker}</span>
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {t.qty % 1 === 0 ? t.qty : t.qty.toFixed(4)}주 · {t.categoryName ?? '—'}
-                              </p>
-                            </div>
-                            <p className="tabular text-sm font-semibold text-foreground">
-                              {formatAmount(t)}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => setConfirmDeleteId(confirmDeleteId === t.id ? null : t.id)}
-                              className="ml-1 flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                            <div
+                              className={cn(
+                                'flex items-center gap-3 px-4 py-3',
+                                t.memo && 'cursor-pointer active:bg-muted/50'
+                              )}
+                              onClick={() => {
+                                if (!t.memo) return
+                                setExpandedMemoId(expandedMemoId === t.id ? null : t.id)
+                              }}
                             >
-                              <Trash2 size={14} />
-                            </button>
+                              <span className={cn(
+                                'w-9 shrink-0 rounded-full py-0.5 text-center text-xs font-bold',
+                                t.tradeType === 'buy' ? 'bg-buy/10 text-buy' : 'bg-sell/10 text-sell'
+                              )}>
+                                {t.tradeType === 'buy' ? '매수' : '매도'}
+                              </span>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-foreground">
+                                  {t.stockName}{' '}
+                                  <span className="text-xs text-muted-foreground">{t.ticker}</span>
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {t.qty % 1 === 0 ? t.qty : t.qty.toFixed(4)}주 · {t.categoryName ?? '—'}
+                                  {t.memo && (
+                                    <span className="ml-1.5 text-muted-foreground/50">
+                                      {expandedMemoId === t.id ? '▲' : '▼'}
+                                    </span>
+                                  )}
+                                </p>
+                              </div>
+                              <p className="tabular text-sm font-semibold text-foreground shrink-0">
+                                {formatAmount(t)}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setConfirmDeleteId(confirmDeleteId === t.id ? null : t.id)
+                                }}
+                                className="ml-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                            {expandedMemoId === t.id && t.memo && (
+                              <div className="px-4 pb-3">
+                                <p className="rounded-lg bg-muted px-3 py-2 text-xs text-foreground/80 whitespace-pre-wrap">
+                                  {t.memo}
+                                </p>
+                              </div>
+                            )}
                           </div>
                           {confirmDeleteId === t.id && (
                             <div className={cn(

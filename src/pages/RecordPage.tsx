@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { CalendarIcon, ChevronDown, X } from 'lucide-react'
@@ -9,32 +9,11 @@ import { Calendar } from '@/components/ui/calendar'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
-import { upsertStock, findCategoryId, insertTrade, fetchAllStocks } from '@/lib/queries'
-import type { StockRow } from '@/lib/queries'
+import { upsertStock, insertTrade, fetchAllStocks, fetchCategories } from '@/lib/queries'
+import type { StockRow, CategoryOption } from '@/lib/queries'
 
 type TradeType = 'buy' | 'sell'
 type Market = 'US' | 'KR'
-
-const BUY_CATEGORIES = [
-  { label: '실적 기대',      emoji: '📈' },
-  { label: '기술적 분석',    emoji: '📊' },
-  { label: '산업/섹터 성장', emoji: '🌱' },
-  { label: '저평가 판단',    emoji: '💰' },
-  { label: '뉴스/이벤트',   emoji: '📰' },
-  { label: '배당 목적',      emoji: '💵' },
-  { label: 'FOMO',           emoji: '😰' },
-]
-
-const SELL_CATEGORIES = [
-  { label: '목표가 도달',  emoji: '🎯' },
-  { label: '손절',         emoji: '✂️' },
-  { label: '리스크 회피',  emoji: '🛡️' },
-  { label: '자금 필요',    emoji: '💸' },
-  { label: '실적 실망',    emoji: '😞' },
-  { label: '뉴스/이벤트', emoji: '📰' },
-  { label: '공포 매도',    emoji: '😱' },
-  { label: '리밸런싱',     emoji: '⚖️' },
-]
 
 export function RecordPage() {
   const { user } = useAuth()
@@ -46,7 +25,8 @@ export function RecordPage() {
   const [stockName, setStockName]               = useState('')
   const [quantity, setQuantity]                 = useState('')
   const [price, setPrice]                       = useState('')
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<CategoryOption | null>(null)
+  const [dbCategories, setDbCategories]         = useState<CategoryOption[]>([])
   const [memo, setMemo]                         = useState('')
   const [saving, setSaving]                     = useState(false)
   const [saveError, setSaveError]               = useState<string | null>(null)
@@ -56,8 +36,13 @@ export function RecordPage() {
   const [stocksLoading, setStocksLoading]       = useState(false)
   const [inputMode, setInputMode]               = useState<'select' | 'manual'>('select')
 
-  const isBuy      = tradeType === 'buy'
-  const categories = isBuy ? BUY_CATEGORIES : SELL_CATEGORIES
+  useEffect(() => {
+    fetchCategories(tradeType)
+      .then(setDbCategories)
+      .catch(console.error)
+  }, [tradeType])
+
+  const isBuy = tradeType === 'buy'
 
   const totalAmount =
     quantity && price
@@ -101,9 +86,6 @@ export function RecordPage() {
     setSaveError(null)
     try {
       const stockId = await upsertStock(user.id, ticker, stockName, market as Market)
-      const categoryId = selectedCategory
-        ? await findCategoryId(selectedCategory, tradeType)
-        : null
       await insertTrade({
         userId:    user.id,
         stockId,
@@ -112,7 +94,7 @@ export function RecordPage() {
         quantity:  parseFloat(quantity),
         price:     parseFloat(price),
         currency:  market === 'US' ? 'USD' : 'KRW',
-        categoryId,
+        categoryId: selectedCategory?.id ?? null,
         memo:      memo || null,
       })
       setSaved(true)
@@ -353,26 +335,29 @@ export function RecordPage() {
               </button>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            {categories.map(({ label, emoji }) => (
-              <button
-                key={label}
-                type="button"
-                onClick={() => setSelectedCategory(label === selectedCategory ? null : label)}
-                className={cn(
-                  'flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition-all',
-                  selectedCategory === label && isBuy  && 'border-buy bg-buy/10 text-buy',
-                  selectedCategory === label && !isBuy && 'border-sell bg-sell/10 text-sell',
-                  selectedCategory !== label && 'border-border bg-card text-foreground'
-                )}
-              >
-                <span className="text-base">{emoji}</span>
-                <span className={cn('text-xs', selectedCategory === label ? 'font-semibold' : 'font-medium')}>
-                  {label}
-                </span>
-              </button>
-            ))}
-          </div>
+          {dbCategories.length === 0 ? (
+            <p className="text-xs text-muted-foreground">카테고리가 없습니다</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              {dbCategories.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setSelectedCategory(selectedCategory?.id === cat.id ? null : cat)}
+                  className={cn(
+                    'flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition-all',
+                    selectedCategory?.id === cat.id && isBuy  && 'border-buy bg-buy/10 text-buy',
+                    selectedCategory?.id === cat.id && !isBuy && 'border-sell bg-sell/10 text-sell',
+                    selectedCategory?.id !== cat.id && 'border-border bg-card text-foreground'
+                  )}
+                >
+                  <span className={cn('text-xs', selectedCategory?.id === cat.id ? 'font-semibold' : 'font-medium')}>
+                    {cat.name}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* ── 메모 ── */}

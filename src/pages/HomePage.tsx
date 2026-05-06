@@ -377,11 +377,14 @@ export function HomePage() {
                       >
                         {t.tradeType === 'buy' ? '매수' : '매도'}
                       </span>
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-foreground">
                           {t.stockName} <span className="text-xs text-muted-foreground">{t.ticker}</span>
                         </p>
                         <p className="text-xs text-muted-foreground">{t.categoryName ?? '—'}</p>
+                        {t.memo && (
+                          <p className="mt-0.5 truncate text-xs text-muted-foreground/70 italic">{t.memo}</p>
+                        )}
                       </div>
                       <div className="text-right">
                         <p className="tabular text-sm font-medium text-foreground">
