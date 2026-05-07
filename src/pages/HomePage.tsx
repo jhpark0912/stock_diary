@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { TrendingUp, TrendingDown, Sun, Moon, ChevronRight } from 'lucide-react'
+import { TrendingUp, TrendingDown, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { fetchHoldings, fetchRecentTrades, fetchRealizedReturns } from '@/lib/queries'
 import type { HoldingRow, RecentTradeRow, RealizedReturnRow } from '@/lib/queries'
@@ -313,7 +313,6 @@ function HoldingCard({
 }
 
 export function HomePage() {
-  const [dark, setDark] = useState(false)
   const [holdings, setHoldings]             = useState<HoldingRow[]>([])
   const [recentTrades, setRecentTrades]     = useState<RecentTradeRow[]>([])
   const [realizedReturns, setRealizedReturns] = useState<RealizedReturnRow[]>([])
@@ -327,12 +326,6 @@ export function HomePage() {
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
-
-  function toggleDark() {
-    const next = !dark
-    setDark(next)
-    document.documentElement.classList.toggle('dark', next)
-  }
 
   const realizedReturnMap = new Map(realizedReturns.map(r => [r.stockId, r]))
 
@@ -356,15 +349,8 @@ export function HomePage() {
   return (
     <div className="flex flex-col">
       {/* 헤더 */}
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background px-5 py-3">
+      <div className="sticky top-0 z-10 border-b border-border bg-background px-5 py-3">
         <h1 className="text-lg font-semibold text-foreground">포트폴리오</h1>
-        <button
-          onClick={toggleDark}
-          className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted"
-          aria-label="다크 모드 토글"
-        >
-          {dark ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
       </div>
 
       <div className="flex flex-col gap-4 p-5">

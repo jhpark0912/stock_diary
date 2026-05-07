@@ -10,6 +10,10 @@
     <title>RD-diary</title>
   </head>
   <body>
+    <script>
+      // FOUC 방지: React 로드 전 localStorage에서 테마 즉시 적용
+      try{if(localStorage.getItem('app-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

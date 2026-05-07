@@ -52,6 +52,81 @@ export async function fetchCategories(tradeType: TradeType): Promise<CategoryOpt
   return (data ?? []) as CategoryOption[]
 }
 
+// ─── Category CRUD ───────────────────────────────────────────────────────────
+
+export interface CategoryRow {
+  id: string
+  name: string
+  type: 'buy' | 'sell' | 'both'
+  is_default: boolean
+  sort_order: number
+}
+
+/** 현재 유저의 전체 카테고리 목록 (설정 페이지용) */
+export async function fetchAllCategories(): Promise<CategoryRow[]> {
+  const { data, error } = await db
+    .from('categories')
+    .select('id, name, type, is_default, sort_order')
+    .order('sort_order', { ascending: true })
+
+  if (error) throw new Error(error.message)
+  return (data ?? []) as CategoryRow[]
+}
+
+/** 카테고리 추가 */
+export async function insertCategory(
+  userId: string,
+  name: string,
+  type: 'buy' | 'sell' | 'both',
+  sortOrder: number,
+): Promise<string> {
+  const { data, error } = await db
+    .from('categories')
+    .insert({ user_id: userId, name, type, is_default: false, sort_order: sortOrder })
+    .select('id')
+    .single()
+
+  if (error) throw new Error(error.message)
+  return data.id as string
+}
+
+/** 카테고리 수정 */
+export async function updateCategory(
+  id: string,
+  updates: { name?: string; type?: 'buy' | 'sell' | 'both'; sort_order?: number },
+): Promise<void> {
+  const { error } = await db.from('categories').update(updates).eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+/** 카테고리 삭제 */
+export async function deleteCategory(id: string): Promise<void> {
+  const { error } = await db.from('categories').delete().eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+/** 카테고리 순서 일괄 업데이트 */
+export async function reorderCategories(
+  items: { id: string; sort_order: number }[],
+): Promise<void> {
+  await Promise.all(
+    items.map(item =>
+      db.from('categories').update({ sort_order: item.sort_order }).eq('id', item.id)
+    )
+  )
+}
+
+/** 카테고리를 참조하는 거래 건수 조회 */
+export async function countTradesByCategory(categoryId: string): Promise<number> {
+  const { count, error } = await db
+    .from('trades')
+    .select('id', { count: 'exact', head: true })
+    .eq('category_id', categoryId)
+
+  if (error) throw new Error(error.message)
+  return count ?? 0
+}
+
 export interface InsertTradeParams {
   userId: string
   stockId: string
