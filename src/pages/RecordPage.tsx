@@ -400,7 +400,7 @@ export function RecordPage() {
               <div className="h-6 w-6 animate-spin rounded-full border-4 border-muted border-t-primary" />
             </div>
           ) : (
-            <div className="mt-4 flex flex-col divide-y divide-border">
+            <div className="mt-2 flex flex-col divide-y divide-border px-4">
               {(() => {
                 const list = isBuy ? allStocks : allStocks.filter(s => s.isHolding)
                 if (list.length === 0) {
