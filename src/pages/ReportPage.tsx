@@ -23,7 +23,7 @@ function formatDate(dateStr: string) {
 
 // ─── 포디엄 바 (국가별 탭용 3단) ─────────────────────────────────────────────
 
-function SinglePodium({ items, currency }: { items: RealizedReturnRow[]; currency: 'USD' | 'KRW' }) {
+function SinglePodium({ items, currency, label }: { items: RealizedReturnRow[]; currency: 'USD' | 'KRW'; label: string }) {
   const top3 = items.slice(0, 3)
   if (top3.length === 0) return null
 
@@ -32,7 +32,9 @@ function SinglePodium({ items, currency }: { items: RealizedReturnRow[]; currenc
   const ranks = [2, 1, 3]
 
   return (
-    <div className="flex items-end justify-center gap-2 px-5 pb-5">
+    <div className="px-5 pb-5">
+      <p className="mb-2.5 text-[11px] font-semibold text-muted-foreground">{label}</p>
+      <div className="flex items-end justify-center gap-2">
       {order.map((item, idx) => {
         const rank = ranks[idx]
         const height = heights[idx]
@@ -66,6 +68,7 @@ function SinglePodium({ items, currency }: { items: RealizedReturnRow[]; currenc
           </div>
         )
       })}
+      </div>
     </div>
   )
 }
@@ -118,7 +121,7 @@ function DualPodium({
                     <div className="flex items-center gap-1">
                       <span className="w-3 text-[10px] font-bold text-muted-foreground">{i + 2}</span>
                       <span className="text-[11px] font-semibold text-foreground truncate max-w-[60px]">
-                        {item.ticker}
+                        {item.stockName}
                       </span>
                     </div>
                     <span className={cn('text-[10px] font-bold tabular-nums', item.realizedGain >= 0 ? 'text-profit' : 'text-loss')}>
@@ -371,6 +374,7 @@ export function ReportPage() {
             <SinglePodium
               items={tab === 'KR' ? sortedForPodium.kr : sortedForPodium.us}
               currency={tab === 'KR' ? 'KRW' : 'USD'}
+              label={tab === 'KR' ? '🏆 한국 주식 수익 TOP 3' : '🏆 미국 주식 수익 TOP 3'}
             />
           )}
 
