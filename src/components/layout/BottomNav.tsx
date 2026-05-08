@@ -6,7 +6,7 @@ const navItems = [
   { to: '/', icon: Home, label: '홈' },
   { to: '/calendar', icon: Calendar, label: '캘린더' },
   { to: '/record', icon: PlusCircle, label: '기록하기' },
-  { to: '/analysis', icon: BarChart2, label: '분석' },
+  { to: '/report', icon: BarChart2, label: '리포트' },
   { to: '/settings', icon: Settings, label: '설정' },
 ]
 

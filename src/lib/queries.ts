@@ -313,24 +313,29 @@ export interface RealizedReturnRow {
   stockId: string
   ticker: string
   stockName: string
+  market: Market
   currency: Currency
   realizedGain: number
   returnPct: number
+  firstBuyDate: string   // YYYY-MM-DD
+  lastSellDate: string   // YYYY-MM-DD
+  holdingDays: number
 }
 
 /** 종목별 실현 수익률: 매도 기록이 있는 종목만 반환 */
 export async function fetchRealizedReturns(): Promise<RealizedReturnRow[]> {
   const { data, error } = await db
     .from('trades')
-    .select('stock_id, trade_type, quantity, price, currency, stocks!inner(id, ticker, stock_name)')
+    .select('stock_id, trade_type, quantity, price, currency, trade_date, stocks!inner(id, ticker, stock_name, market)')
     .order('trade_date', { ascending: true })
 
   if (error) throw new Error(error.message)
   if (!data?.length) return []
 
   type Acc = {
-    stockId: string; ticker: string; stockName: string; currency: Currency
+    stockId: string; ticker: string; stockName: string; market: Market; currency: Currency
     buyQty: number; buyAmt: number; sellQty: number; sellAmt: number
+    firstBuyDate: string; lastSellDate: string
   }
   const map = new Map<string, Acc>()
 
@@ -339,8 +344,9 @@ export async function fetchRealizedReturns(): Promise<RealizedReturnRow[]> {
     if (!map.has(row.stock_id)) {
       map.set(row.stock_id, {
         stockId: s.id, ticker: s.ticker, stockName: s.stock_name,
-        currency: row.currency as Currency,
+        market: s.market as Market, currency: row.currency as Currency,
         buyQty: 0, buyAmt: 0, sellQty: 0, sellAmt: 0,
+        firstBuyDate: '', lastSellDate: '',
       })
     }
     const e = map.get(row.stock_id)!
@@ -349,20 +355,30 @@ export async function fetchRealizedReturns(): Promise<RealizedReturnRow[]> {
     if (row.trade_type === 'buy') {
       e.buyQty += qty
       e.buyAmt += qty * price
+      if (!e.firstBuyDate || row.trade_date < e.firstBuyDate) e.firstBuyDate = row.trade_date
     } else {
       e.sellQty += qty
       e.sellAmt += qty * price
+      if (!e.lastSellDate || row.trade_date > e.lastSellDate) e.lastSellDate = row.trade_date
     }
   }
 
   return [...map.values()]
     .filter(e => e.sellQty > 0 && e.buyQty > 0)
     .map(e => {
-      const avgBuyPrice = e.buyAmt / e.buyQty
-      const costBasis   = avgBuyPrice * e.sellQty
+      const avgBuyPrice  = e.buyAmt / e.buyQty
+      const costBasis    = avgBuyPrice * e.sellQty
       const realizedGain = e.sellAmt - costBasis
       const returnPct    = costBasis > 0 ? (realizedGain / costBasis) * 100 : 0
-      return { stockId: e.stockId, ticker: e.ticker, stockName: e.stockName, currency: e.currency, realizedGain, returnPct }
+      const holdingDays  = e.firstBuyDate && e.lastSellDate
+        ? Math.round((new Date(e.lastSellDate).getTime() - new Date(e.firstBuyDate).getTime()) / 86_400_000)
+        : 0
+      return {
+        stockId: e.stockId, ticker: e.ticker, stockName: e.stockName,
+        market: e.market, currency: e.currency,
+        realizedGain, returnPct,
+        firstBuyDate: e.firstBuyDate, lastSellDate: e.lastSellDate, holdingDays,
+      }
     })
 }
 

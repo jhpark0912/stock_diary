@@ -6,7 +6,7 @@ import { AuthCallbackPage } from '@/pages/AuthCallbackPage'
 import { HomePage } from '@/pages/HomePage'
 import { CalendarPage } from '@/pages/CalendarPage'
 import { RecordPage } from '@/pages/RecordPage'
-import { AnalysisPage } from '@/pages/AnalysisPage'
+import { ReportPage } from '@/pages/ReportPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 
 export default function App() {
@@ -23,7 +23,7 @@ export default function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/record" element={<RecordPage />} />
-            <Route path="/analysis" element={<AnalysisPage />} />
+            <Route path="/report" element={<ReportPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Route>

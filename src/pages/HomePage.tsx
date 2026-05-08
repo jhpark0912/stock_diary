@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { TrendingUp, TrendingDown, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { fetchHoldings, fetchRecentTrades, fetchRealizedReturns } from '@/lib/queries'
 import type { HoldingRow, RecentTradeRow, RealizedReturnRow } from '@/lib/queries'
 import { useStockPrices } from '@/hooks/useStockPrices'
 import type { StockQuote } from '@/types/stockPrice'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 
 function formatUSD(val: number) {
   return `$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -31,50 +31,6 @@ function todayString() {
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 ${week[d.getDay()]}요일`
 }
 
-function RealizedHistorySheet({
-  open,
-  onClose,
-  label,
-  items,
-  currency,
-}: {
-  open: boolean
-  onClose: () => void
-  label: string
-  items: RealizedReturnRow[]
-  currency: 'USD' | 'KRW'
-}) {
-  return (
-    <Sheet open={open} onOpenChange={v => !v && onClose()}>
-      <SheetContent side="bottom" className="rounded-t-2xl max-h-[80vh] overflow-y-auto">
-        <SheetHeader className="mb-4">
-          <SheetTitle className="text-base font-semibold">{label} 실현 손익</SheetTitle>
-        </SheetHeader>
-        <div className="flex flex-col gap-2">
-          {items.map(r => {
-            const up = r.realizedGain >= 0
-            return (
-              <div key={r.stockId} className="flex items-center justify-between rounded-xl bg-muted px-4 py-3">
-                <div className="min-w-0 mr-3">
-                  <p className="truncate text-sm font-semibold text-foreground">{r.stockName}</p>
-                  <p className="text-xs text-muted-foreground">{r.ticker}</p>
-                </div>
-                <div className="shrink-0 text-right">
-                  <p className={cn('tabular text-sm font-semibold', up ? 'text-profit' : 'text-loss')}>
-                    {up ? '+' : ''}{formatCurrency(r.realizedGain, currency)}
-                  </p>
-                  <p className={cn('tabular text-xs font-medium', up ? 'text-profit' : 'text-loss')}>
-                    {up ? '+' : ''}{r.returnPct.toFixed(1)}%
-                  </p>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </SheetContent>
-    </Sheet>
-  )
-}
 
 function MarketSummaryCard({
   label,
@@ -89,7 +45,7 @@ function MarketSummaryCard({
   quotes: Record<string, StockQuote>
   realizedReturns: RealizedReturnRow[]
 }) {
-  const [sheetOpen, setSheetOpen] = useState(false)
+  const navigate = useNavigate()
 
   const filtered = holdings.filter(h => h.currency === currency)
 
@@ -163,7 +119,7 @@ function MarketSummaryCard({
         <>
           <div className="mt-3 border-t border-border" />
           <button
-            onClick={() => setSheetOpen(true)}
+            onClick={() => navigate('/report')}
             className="mt-1 flex w-full items-center justify-between py-2"
           >
             <span className="text-xs text-muted-foreground">실현 손익</span>
@@ -174,13 +130,6 @@ function MarketSummaryCard({
               <ChevronRight size={13} className="text-muted-foreground" />
             </div>
           </button>
-          <RealizedHistorySheet
-            open={sheetOpen}
-            onClose={() => setSheetOpen(false)}
-            label={label}
-            items={realizedFiltered}
-            currency={currency}
-          />
         </>
       )}
     </div>
