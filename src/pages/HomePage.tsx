@@ -54,7 +54,7 @@ function RealizedHistorySheet({
           {items.map(r => {
             const up = r.realizedGain >= 0
             return (
-              <div key={r.stockId} className="flex items-center justify-between rounded-xl bg-muted/40 px-4 py-3">
+              <div key={r.stockId} className="flex items-center justify-between rounded-xl bg-muted px-4 py-3">
                 <div className="min-w-0 mr-3">
                   <p className="truncate text-sm font-semibold text-foreground">{r.stockName}</p>
                   <p className="text-xs text-muted-foreground">{r.ticker}</p>

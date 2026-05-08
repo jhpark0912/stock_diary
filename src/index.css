@@ -20,6 +20,8 @@
   --color-primary-foreground:var(--primary-foreground);
   --color-destructive:       var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-popover:           var(--popover);
+  --color-popover-foreground:var(--popover-foreground);
   --color-ring:              var(--ring);
 
   /* 주식 앱 전용 */
@@ -50,6 +52,8 @@
   --primary-foreground:#FFFFFF;
   --destructive:       #D94F3D;
   --destructive-foreground: #FFFFFF;
+  --popover:           #FFFFFF;
+  --popover-foreground:#1A1A1A;
   --ring:              #1A6B3C;
   --radius:            16px;
 
@@ -76,6 +80,8 @@
   --primary-foreground:#1A1F1C;
   --destructive:       #F87171;
   --destructive-foreground: #1A1F1C;
+  --popover:           #2A3230;
+  --popover-foreground:#F0EDE8;
   --ring:              #4ADE80;
 
   /* 매매 전용 */
