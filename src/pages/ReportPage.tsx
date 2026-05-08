@@ -29,11 +29,11 @@ function SinglePodium({ items, currency, label }: { items: RealizedReturnRow[]; 
   if (top3.length === 0) return null
 
   const order = [top3[1], top3[0], top3[2]].filter(Boolean)
-  const heights = [82, 110, 60]
+  const heights = [110, 140, 90]
   const ranks = [2, 1, 3]
 
   return (
-    <div className="px-5 pb-5">
+    <div className="px-3 pb-5">
       <p className="mb-2.5 text-[11px] font-semibold text-muted-foreground">{label}</p>
       <div className="flex items-end justify-center gap-2">
       {order.map((item, idx) => {
@@ -41,9 +41,9 @@ function SinglePodium({ items, currency, label }: { items: RealizedReturnRow[]; 
         const height = heights[idx]
         const up = item.realizedGain >= 0
         return (
-          <div key={item.stockId} className="flex flex-col items-center">
+          <div key={item.stockId} className="flex flex-1 flex-col items-center">
             <div
-              className="relative flex w-[90px] flex-col items-center justify-end rounded-t-[10px] px-2 pb-3 pt-2"
+              className="relative flex w-full flex-col items-center justify-end rounded-t-[10px] px-2 pb-3 pt-2"
               style={{
                 height,
                 background: up
@@ -53,10 +53,10 @@ function SinglePodium({ items, currency, label }: { items: RealizedReturnRow[]; 
             >
               {rank === 1 && <span className="absolute -top-3 text-sm">👑</span>}
               <span className="text-xl font-black text-white/90">{rank}</span>
-              <span className="mt-1 max-w-[80px] overflow-hidden text-ellipsis whitespace-nowrap text-center text-[11px] font-bold text-white">
+              <span className="mt-1 max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-center text-[11px] font-bold text-white">
                 {item.ticker}
               </span>
-              <span className="mt-0.5 max-w-[80px] overflow-hidden text-ellipsis whitespace-nowrap text-center text-[9px] text-white/75">
+              <span className="mt-0.5 max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-center text-[9px] text-white/75">
                 {item.stockName}
               </span>
               <span className="mt-1 text-[11px] font-bold tabular-nums text-white/95">
