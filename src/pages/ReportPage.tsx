@@ -96,7 +96,7 @@ function DualPodium({
         return (
           <div
             key={label}
-            className="flex flex-1 flex-col rounded-2xl bg-muted px-3 py-3"
+            className="flex flex-1 flex-col rounded-2xl bg-card card-shadow px-3 py-3"
           >
             <div className="text-center text-xl">{flag}</div>
             <div className="mt-1 text-center text-[10px] font-semibold text-muted-foreground">{label}</div>
@@ -355,7 +355,7 @@ export function ReportPage() {
                     </span>
                   </div>
                 )}
-                <div className="flex items-center gap-1.5 rounded-lg bg-muted px-2.5 py-1.5">
+                <div className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5">
                   <span className="text-[11px] font-semibold text-foreground">
                     승률 {winCount}/{filtered.length}
                   </span>
@@ -379,7 +379,7 @@ export function ReportPage() {
           )}
 
           {/* 구분선 */}
-          <div className="h-1.5 bg-muted" />
+          <div className="h-1.5 bg-border" />
 
           {/* 리스트 헤더 */}
           <div className="flex items-center justify-between px-5 pt-4 pb-2">
