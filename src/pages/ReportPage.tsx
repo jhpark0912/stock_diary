@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { TrendingUp, TrendingDown, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { fetchRealizedReturns } from '@/lib/queries'
@@ -97,11 +97,13 @@ function DualPodium({
         return (
           <div
             key={label}
-            className="flex flex-1 flex-col rounded-2xl bg-card card-shadow px-3 py-3"
+            className="flex flex-1 flex-col rounded-2xl bg-card card-shadow px-2.5 py-2.5"
           >
-            <div className="text-center text-xl">{flag}</div>
-            <div className="mt-1 text-center text-[10px] font-semibold text-muted-foreground">{label}</div>
-            <div className="mt-2 text-center">
+            <div className="flex items-center justify-center gap-1">
+              <span className="text-base">{flag}</span>
+              <span className="text-[10px] font-semibold text-muted-foreground">{label}</span>
+            </div>
+            <div className="mt-1.5 text-center">
               <div className="text-sm">👑</div>
               <div className={cn('text-[13px] font-extrabold', champion.realizedGain >= 0 ? 'text-profit' : 'text-loss')}>
                 {champion.ticker}
@@ -119,7 +121,7 @@ function DualPodium({
               <div className="mt-2 border-t border-border pt-2 flex flex-col gap-1.5">
                 {runnerUps.map((item, i) => (
                   <div key={item.stockId} className="flex items-center justify-between gap-1">
-                    <div className="flex min-w-0 items-center gap-1">
+                    <div className="flex min-w-0 flex-1 items-center gap-1">
                       <span className="w-3 shrink-0 text-[10px] font-bold text-muted-foreground">{i + 2}</span>
                       <span className="min-w-0 truncate text-[11px] font-semibold text-foreground">
                         {item.stockName}
@@ -206,6 +208,7 @@ function RealizedListItem({
 
 export function ReportPage() {
   const location = useLocation()
+  const navigate = useNavigate()
   const [items, setItems]       = useState<RealizedReturnRow[]>([])
   const [loading, setLoading]   = useState(true)
   const [tab, setTab]           = useState<TabType>(
@@ -213,6 +216,13 @@ export function ReportPage() {
   )
   const [sort, setSort]         = useState<SortType>('returnPct')
   const [showAll, setShowAll]   = useState(false)
+
+  // 홈에서 전달받은 탭 state를 읽은 후 히스토리에서 제거 (새로고침 시 전체 탭으로 복귀)
+  useEffect(() => {
+    if (location.state?.tab) {
+      navigate(location.pathname, { replace: true, state: {} })
+    }
+  }, [])
 
   useEffect(() => {
     fetchRealizedReturns()
