@@ -36,12 +36,14 @@ function MarketSummaryCard({
   label,
   holdings,
   currency,
+  market,
   quotes,
   realizedReturns,
 }: {
   label: string
   holdings: HoldingRow[]
   currency: 'USD' | 'KRW'
+  market: 'KR' | 'US'
   quotes: Record<string, StockQuote>
   realizedReturns: RealizedReturnRow[]
 }) {
@@ -119,7 +121,7 @@ function MarketSummaryCard({
         <>
           <div className="mt-3 border-t border-border" />
           <button
-            onClick={() => navigate('/report')}
+            onClick={() => navigate('/report', { state: { tab: market } })}
             className="mt-1 flex w-full items-center justify-between py-2"
           >
             <span className="text-xs text-muted-foreground">실현 손익</span>
@@ -312,8 +314,8 @@ export function HomePage() {
         ) : (
           <>
             {/* 시장별 요약 카드 */}
-            <MarketSummaryCard label="🇰🇷 한국 주식" holdings={holdings} currency="KRW" quotes={quotes} realizedReturns={realizedReturns} />
-            <MarketSummaryCard label="🇺🇸 미국 주식" holdings={holdings} currency="USD" quotes={quotes} realizedReturns={realizedReturns} />
+            <MarketSummaryCard label="🇰🇷 한국 주식" holdings={holdings} currency="KRW" market="KR" quotes={quotes} realizedReturns={realizedReturns} />
+            <MarketSummaryCard label="🇺🇸 미국 주식" holdings={holdings} currency="USD" market="US" quotes={quotes} realizedReturns={realizedReturns} />
 
             {/* 보유 종목 — 수익/손실 그룹핑 */}
             <section>

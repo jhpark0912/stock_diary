@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { TrendingUp, TrendingDown, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { fetchRealizedReturns } from '@/lib/queries'
@@ -204,9 +205,12 @@ function RealizedListItem({
 // ─── 메인 페이지 ─────────────────────────────────────────────────────────────
 
 export function ReportPage() {
+  const location = useLocation()
   const [items, setItems]       = useState<RealizedReturnRow[]>([])
   const [loading, setLoading]   = useState(true)
-  const [tab, setTab]           = useState<TabType>('all')
+  const [tab, setTab]           = useState<TabType>(
+    (location.state?.tab as TabType) ?? 'all'
+  )
   const [sort, setSort]         = useState<SortType>('returnPct')
   const [showAll, setShowAll]   = useState(false)
 
@@ -325,7 +329,7 @@ export function ReportPage() {
                     </span>
                   </div>
                 )}
-                <div className="flex items-center gap-1.5 rounded-lg bg-muted px-2.5 py-1.5">
+                <div className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5">
                   <span className="text-[11px] font-semibold text-foreground">
                     승률 {winCount}/{filtered.length}
                   </span>
