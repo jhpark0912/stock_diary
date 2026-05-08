@@ -66,7 +66,6 @@ export function RecordPage() {
   function selectStock(stock: StockRow) {
     setTicker(stock.ticker)
     setStockName(stock.stockName)
-    setMarket(stock.market)
     setQuantity('')
     setStockSheetOpen(false)
   }
@@ -181,7 +180,7 @@ export function RecordPage() {
             <button
               key={m}
               type="button"
-              onClick={() => setMarket(m)}
+              onClick={() => { setMarket(m); setAllStocks([]) }}
               className={cn(
                 'flex shrink-0 flex-col items-center justify-center rounded-xl border px-3 py-1.5 transition-all',
                 market === m ? 'border-primary bg-primary/10' : 'border-border bg-card'
@@ -402,11 +401,14 @@ export function RecordPage() {
           ) : (
             <div className="mt-2 flex flex-col divide-y divide-border px-4">
               {(() => {
-                const list = isBuy ? allStocks : allStocks.filter(s => s.isHolding)
+                const filtered = allStocks.filter(s => s.market === market)
+                const list = isBuy ? filtered : filtered.filter(s => s.isHolding)
                 if (list.length === 0) {
                   return (
                     <p className="py-8 text-center text-sm text-muted-foreground">
-                      {isBuy ? '등록된 종목이 없습니다' : '보유 중인 종목이 없습니다'}
+                      {isBuy
+                        ? `${market === 'KR' ? '한국' : '미국'} 시장에 등록된 종목이 없습니다`
+                        : `${market === 'KR' ? '한국' : '미국'} 시장에 보유 종목이 없습니다`}
                     </p>
                   )
                 }
