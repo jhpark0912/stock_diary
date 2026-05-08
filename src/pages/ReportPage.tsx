@@ -86,7 +86,7 @@ function DualPodium({
   if (krItems.length === 0 && usItems.length === 0) return null
 
   return (
-    <div className="flex gap-3 px-5 pb-5">
+    <div className="flex gap-2 px-3 pb-5">
       {[
         { flag: '🇰🇷', label: '한국 TOP', items: krItems, currency: 'KRW' as const },
         { flag: '🇺🇸', label: '미국 TOP', items: usItems, currency: 'USD' as const },
@@ -116,16 +116,16 @@ function DualPodium({
               <div className="mt-1 text-[9px] text-muted-foreground">📅 {champion.holdingDays}일 보유</div>
             </div>
             {runnerUps.length > 0 && (
-              <div className="mt-2 border-t border-border pt-2 flex flex-col gap-1">
+              <div className="mt-2 border-t border-border pt-2 flex flex-col gap-1.5">
                 {runnerUps.map((item, i) => (
-                  <div key={item.stockId} className="flex items-center justify-between">
-                    <div className="flex items-center gap-1">
-                      <span className="w-3 text-[10px] font-bold text-muted-foreground">{i + 2}</span>
-                      <span className="text-[11px] font-semibold text-foreground truncate max-w-[60px]">
+                  <div key={item.stockId} className="flex items-center justify-between gap-1">
+                    <div className="flex min-w-0 items-center gap-1">
+                      <span className="w-3 shrink-0 text-[10px] font-bold text-muted-foreground">{i + 2}</span>
+                      <span className="min-w-0 truncate text-[11px] font-semibold text-foreground">
                         {item.stockName}
                       </span>
                     </div>
-                    <span className={cn('text-[10px] font-bold tabular-nums', item.realizedGain >= 0 ? 'text-profit' : 'text-loss')}>
+                    <span className={cn('shrink-0 text-[10px] font-bold tabular-nums', item.realizedGain >= 0 ? 'text-profit' : 'text-loss')}>
                       {formatGain(item.realizedGain, currency)}
                     </span>
                   </div>
