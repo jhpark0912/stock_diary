@@ -19,7 +19,7 @@ import {
 import type { CategoryRow, StockRow } from '@/lib/queries'
 import type { Market } from '@/types/database'
 
-type Tab = 'account' | 'trade' | 'display'
+type Tab = 'account' | 'trade' | 'stock' | 'display'
 
 function parseNumber(s: string): number {
   return parseInt(s.replace(/[^\d]/g, ''), 10) || 0
@@ -50,6 +50,7 @@ export function SettingsPage() {
         {([
           { key: 'account', label: '계정' },
           { key: 'trade', label: '거래' },
+          { key: 'stock', label: '종목' },
           { key: 'display', label: '화면' },
         ] as const).map(tab => (
           <button
@@ -73,6 +74,7 @@ export function SettingsPage() {
       <div className="flex flex-col gap-4 p-5">
         {activeTab === 'account' && <AccountTab />}
         {activeTab === 'trade' && <TradeTab />}
+        {activeTab === 'stock' && <StockManagement />}
         {activeTab === 'display' && <DisplayTab />}
       </div>
     </div>
@@ -224,7 +226,6 @@ function TradeTab() {
   }
 
   return (
-    <>
     <section className="card-shadow rounded-2xl bg-card p-5">
       <h2 className="mb-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">카테고리 관리</h2>
       <p className="mb-4 text-xs text-muted-foreground">
@@ -351,8 +352,6 @@ function TradeTab() {
         </button>
       )}
     </section>
-    <StockManagement />
-    </>
   )
 }
 
