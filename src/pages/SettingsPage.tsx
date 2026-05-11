@@ -11,7 +11,6 @@ import {
   deleteCategory,
   reorderCategories,
   countTradesByCategory,
-  fetchHoldings,
   fetchAllStocks,
   updateStockMarket,
   deleteStock,
