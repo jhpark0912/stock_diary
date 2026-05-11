@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { fetchQuotes } from '@/lib/stockPrice'
+import { fetchQuotes, EXCHANGE_RATE_SYMBOL } from '@/lib/stockPrice'
 import type { HoldingRow } from '@/lib/queries'
 import type { QuoteMap } from '@/types/stockPrice'
 
@@ -18,8 +18,34 @@ function isKRMarketOpen(): boolean {
   return time >= 9 * 60 && time < 15 * 60 + 30  // 09:00~15:30
 }
 
+const EXCHANGE_RATE_CACHE_KEY = 'stock-diary:exchange-rate'
+
+interface CachedExchangeRate {
+  rate: number
+  updatedAt: string
+}
+
+function getCachedExchangeRate(): CachedExchangeRate | null {
+  try {
+    const raw = localStorage.getItem(EXCHANGE_RATE_CACHE_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as CachedExchangeRate
+  } catch { return null }
+}
+
+function setCachedExchangeRate(rate: number) {
+  try {
+    const data: CachedExchangeRate = { rate, updatedAt: new Date().toISOString() }
+    localStorage.setItem(EXCHANGE_RATE_CACHE_KEY, JSON.stringify(data))
+  } catch { /* localStorage 사용 불가 시 무시 */ }
+}
+
 export interface UseStockPricesResult {
   quotes: QuoteMap
+  /** USD → KRW 환율. 실시간 또는 캐시 값 */
+  exchangeRate: number | null
+  /** 환율이 캐시된 값인 경우 true */
+  exchangeRateStale: boolean
   loading: boolean
   error: string | null
   stale: boolean
@@ -76,5 +102,19 @@ export function useStockPrices(holdings: HoldingRow[]): UseStockPricesResult {
     }
   }, [holdings, load])
 
-  return { quotes, loading, error, stale, lastUpdated }
+  const liveRate = quotes[EXCHANGE_RATE_SYMBOL]?.price ?? null
+  let exchangeRate: number | null = liveRate
+  let exchangeRateStale = false
+
+  if (liveRate) {
+    setCachedExchangeRate(liveRate)
+  } else {
+    const cached = getCachedExchangeRate()
+    if (cached) {
+      exchangeRate = cached.rate
+      exchangeRateStale = true
+    }
+  }
+
+  return { quotes, exchangeRate, exchangeRateStale, loading, error, stale, lastUpdated }
 }

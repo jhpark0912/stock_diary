@@ -8,6 +8,8 @@ import { useStockPrices } from '@/hooks/useStockPrices'
 import type { StockQuote } from '@/types/stockPrice'
 import { toYahooSymbol } from '@/lib/stockPrice'
 
+type MarketTab = 'all' | 'KR' | 'US'
+
 function formatUSD(val: number) {
   return `$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
@@ -139,6 +141,81 @@ function MarketSummaryCard({
   )
 }
 
+function TotalAssetCard({
+  holdings,
+  quotes,
+  exchangeRate,
+  exchangeRateStale,
+}: {
+  holdings: HoldingRow[]
+  quotes: Record<string, StockQuote>
+  exchangeRate: number
+  exchangeRateStale: boolean
+}) {
+  const krHoldings = holdings.filter(h => h.currency === 'KRW')
+  const usHoldings = holdings.filter(h => h.currency === 'USD')
+
+  let krCost = 0, krValue = 0
+  for (const h of krHoldings) {
+    const cost = h.netQty * h.avgBuyPrice
+    krCost += cost
+    const q = quotes[toYahooSymbol(h.ticker, h.market)]
+    krValue += q ? h.netQty * q.price : cost
+  }
+
+  let usCost = 0, usValue = 0
+  for (const h of usHoldings) {
+    const cost = h.netQty * h.avgBuyPrice
+    usCost += cost
+    const q = quotes[toYahooSymbol(h.ticker, h.market)]
+    usValue += q ? h.netQty * q.price : cost
+  }
+
+  const totalKRW = krValue + usValue * exchangeRate
+  const totalCostKRW = krCost + usCost * exchangeRate
+  const pnl = totalKRW - totalCostKRW
+  const pnlPct = totalCostKRW > 0 ? (pnl / totalCostKRW) * 100 : 0
+  const up = pnl >= 0
+
+  const krRatio = totalKRW > 0 ? (krValue / totalKRW) * 100 : 0
+
+  return (
+    <div className="rounded-2xl p-5 text-white" style={{ background: 'linear-gradient(135deg, #1A6B3C 0%, #145A30 100%)' }}>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs opacity-70">총 자산 (원화 환산)</span>
+        <span className="text-[10px] opacity-60">
+          1 USD = ₩{exchangeRate.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}
+          {exchangeRateStale && ' (캐시)'}
+        </span>
+      </div>
+      <p className="tabular text-[28px] font-extrabold leading-tight tracking-tight">
+        {formatKRW(totalKRW)}
+      </p>
+      <p className="text-xs opacity-70 mt-0.5">투자원금 {formatKRW(totalCostKRW)}</p>
+      <span
+        className={cn(
+          'mt-2 inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold',
+        )}
+        style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}
+      >
+        {up ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+        {up ? '+' : ''}{formatKRW(pnl)} ({up ? '+' : ''}{pnlPct.toFixed(1)}%)
+      </span>
+
+      {/* 비중 바 */}
+      <div className="mt-3">
+        <div className="flex justify-between text-[10px] opacity-70 mb-1">
+          <span>🇰🇷 {krRatio.toFixed(1)}%</span>
+          <span>🇺🇸 {(100 - krRatio).toFixed(1)}%</span>
+        </div>
+        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.2)' }}>
+          <div className="h-full rounded-full" style={{ width: `${krRatio}%`, background: 'rgba(255,255,255,0.6)' }} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function HoldingGroup({
   title,
   holdings,
@@ -264,13 +341,74 @@ function HoldingCard({
   )
 }
 
+/** 시장별로 holdings를 분류하고 수익/손실/시세없음으로 그룹핑 */
+function useGroupedHoldings(holdings: HoldingRow[], quotes: Record<string, StockQuote>) {
+  const classify = (list: HoldingRow[]) => {
+    const gainers = list.filter(h => {
+      const q = quotes[toYahooSymbol(h.ticker, h.market)]
+      return q ? q.price >= h.avgBuyPrice : false
+    })
+    const losers = list.filter(h => {
+      const q = quotes[toYahooSymbol(h.ticker, h.market)]
+      return q ? q.price < h.avgBuyPrice : false
+    })
+    const noQuote = list.filter(h => !quotes[toYahooSymbol(h.ticker, h.market)])
+    return { gainers, losers, noQuote }
+  }
+
+  const krHoldings = holdings.filter(h => h.currency === 'KRW')
+  const usHoldings = holdings.filter(h => h.currency === 'USD')
+
+  return {
+    kr: classify(krHoldings),
+    us: classify(usHoldings),
+    all: classify(holdings),
+    krHoldings,
+    usHoldings,
+  }
+}
+
+function MarketDivider({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 py-1">
+      <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{label}</span>
+      <div className="flex-1 h-px bg-border" />
+    </div>
+  )
+}
+
+function HoldingSection({
+  groups,
+  quotes,
+  realizedReturnMap,
+}: {
+  groups: { gainers: HoldingRow[]; losers: HoldingRow[]; noQuote: HoldingRow[] }
+  quotes: Record<string, StockQuote>
+  realizedReturnMap: Map<string, RealizedReturnRow>
+}) {
+  return (
+    <div className="flex flex-col gap-4">
+      <HoldingGroup title="수익" holdings={groups.gainers} quotes={quotes} realizedReturnMap={realizedReturnMap} groupType="gain" />
+      <HoldingGroup title="손실" holdings={groups.losers} quotes={quotes} realizedReturnMap={realizedReturnMap} groupType="loss" />
+      <HoldingGroup title="시세 없음" holdings={groups.noQuote} quotes={quotes} realizedReturnMap={realizedReturnMap} groupType="neutral" />
+    </div>
+  )
+}
+
+const TAB_ITEMS: { key: MarketTab; label: string }[] = [
+  { key: 'all', label: '전체' },
+  { key: 'KR', label: '🇰🇷 한국' },
+  { key: 'US', label: '🇺🇸 미국' },
+]
+
 export function HomePage() {
   const [holdings, setHoldings]             = useState<HoldingRow[]>([])
   const [recentTrades, setRecentTrades]     = useState<RecentTradeRow[]>([])
   const [realizedReturns, setRealizedReturns] = useState<RealizedReturnRow[]>([])
   const [loading, setLoading]               = useState(true)
+  const [activeTab, setActiveTab]           = useState<MarketTab>('all')
 
-  const { quotes, stale, lastUpdated } = useStockPrices(holdings)
+  const { quotes, exchangeRate, exchangeRateStale, stale, lastUpdated } = useStockPrices(holdings)
 
   useEffect(() => {
     Promise.all([fetchHoldings(), fetchRecentTrades(5), fetchRealizedReturns()])
@@ -280,23 +418,12 @@ export function HomePage() {
   }, [])
 
   const realizedReturnMap = new Map(realizedReturns.map(r => [r.stockId, r]))
-
-  // D 방향: 수익/손실 그룹핑
-  const gainers  = holdings.filter(h => {
-    const sym = toYahooSymbol(h.ticker, h.market)
-    const q   = quotes[sym]
-    return q ? q.price >= h.avgBuyPrice : false
-  })
-  const losers   = holdings.filter(h => {
-    const sym = toYahooSymbol(h.ticker, h.market)
-    const q   = quotes[sym]
-    return q ? q.price < h.avgBuyPrice : false
-  })
-  const noQuote  = holdings.filter(h => {
-    const sym = toYahooSymbol(h.ticker, h.market)
-    return !quotes[sym]
-  })
+  const grouped = useGroupedHoldings(holdings, quotes)
   const hasQuotes = Object.keys(quotes).length > 0
+
+  const visibleHoldings = activeTab === 'KR' ? grouped.krHoldings
+    : activeTab === 'US' ? grouped.usHoldings
+    : holdings
 
   return (
     <div className="flex flex-col">
@@ -308,21 +435,48 @@ export function HomePage() {
       <div className="flex flex-col gap-4 p-5">
         <p className="text-xs text-muted-foreground">{todayString()}</p>
 
+        {/* 탭 */}
+        <div className="flex gap-1 rounded-[10px] bg-muted p-[3px]">
+          {TAB_ITEMS.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setActiveTab(t.key)}
+              className={cn(
+                'flex-1 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-all',
+                activeTab === t.key
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground',
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
           </div>
         ) : (
           <>
-            {/* 시장별 요약 카드 */}
-            <MarketSummaryCard label="🇰🇷 한국 주식" holdings={holdings} currency="KRW" market="KR" quotes={quotes} realizedReturns={realizedReturns} />
-            <MarketSummaryCard label="🇺🇸 미국 주식" holdings={holdings} currency="USD" market="US" quotes={quotes} realizedReturns={realizedReturns} />
+            {/* 전체 탭: 총 자산 카드 */}
+            {activeTab === 'all' && exchangeRate && (
+              <TotalAssetCard holdings={holdings} quotes={quotes} exchangeRate={exchangeRate} exchangeRateStale={exchangeRateStale} />
+            )}
 
-            {/* 보유 종목 — 수익/손실 그룹핑 */}
+            {/* 시장별 요약 카드 */}
+            {(activeTab === 'all' || activeTab === 'KR') && (
+              <MarketSummaryCard label="🇰🇷 한국 주식" holdings={holdings} currency="KRW" market="KR" quotes={quotes} realizedReturns={realizedReturns} />
+            )}
+            {(activeTab === 'all' || activeTab === 'US') && (
+              <MarketSummaryCard label="🇺🇸 미국 주식" holdings={holdings} currency="USD" market="US" quotes={quotes} realizedReturns={realizedReturns} />
+            )}
+
+            {/* 보유 종목 */}
             <section>
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-base font-semibold text-foreground">
-                  보유 종목 {holdings.length}
+                  보유 종목 {visibleHoldings.length}
                 </h2>
                 {lastUpdated && (
                   <span className={cn('text-[10px]', stale ? 'text-loss' : 'text-muted-foreground')}>
@@ -332,38 +486,38 @@ export function HomePage() {
                 )}
               </div>
 
-              {holdings.length === 0 ? (
+              {visibleHoldings.length === 0 ? (
                 <div className="card-shadow flex items-center justify-center rounded-2xl bg-card py-10">
-                  <p className="text-sm text-muted-foreground">기록하기 탭에서 첫 매매를 추가해 보세요</p>
+                  <p className="text-sm text-muted-foreground">
+                    {activeTab === 'all' ? '기록하기 탭에서 첫 매매를 추가해 보세요' : '해당 시장 보유 종목이 없습니다'}
+                  </p>
                 </div>
               ) : hasQuotes ? (
-                <div className="flex flex-col gap-4">
-                  <HoldingGroup
-                    title="수익"
-                    holdings={gainers}
+                activeTab === 'all' ? (
+                  <div className="flex flex-col gap-4">
+                    {grouped.krHoldings.length > 0 && (
+                      <>
+                        <MarketDivider label="🇰🇷 한국" />
+                        <HoldingSection groups={grouped.kr} quotes={quotes} realizedReturnMap={realizedReturnMap} />
+                      </>
+                    )}
+                    {grouped.usHoldings.length > 0 && (
+                      <>
+                        <MarketDivider label="🇺🇸 미국" />
+                        <HoldingSection groups={grouped.us} quotes={quotes} realizedReturnMap={realizedReturnMap} />
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <HoldingSection
+                    groups={activeTab === 'KR' ? grouped.kr : grouped.us}
                     quotes={quotes}
                     realizedReturnMap={realizedReturnMap}
-                    groupType="gain"
                   />
-                  <HoldingGroup
-                    title="손실"
-                    holdings={losers}
-                    quotes={quotes}
-                    realizedReturnMap={realizedReturnMap}
-                    groupType="loss"
-                  />
-                  <HoldingGroup
-                    title="시세 없음"
-                    holdings={noQuote}
-                    quotes={quotes}
-                    realizedReturnMap={realizedReturnMap}
-                    groupType="neutral"
-                  />
-                </div>
+                )
               ) : (
-                // 시세 로딩 전: 기존 레이아웃 그대로
                 <div className="flex flex-col gap-3">
-                  {holdings.map(h => (
+                  {visibleHoldings.map(h => (
                     <HoldingCard key={h.stockId} h={h} quotes={{}} realizedReturnMap={realizedReturnMap} />
                   ))}
                 </div>
