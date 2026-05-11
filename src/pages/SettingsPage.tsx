@@ -11,8 +11,14 @@ import {
   deleteCategory,
   reorderCategories,
   countTradesByCategory,
+  fetchHoldings,
+  fetchAllStocks,
+  updateStockMarket,
+  deleteStock,
+  countTradesByStock,
 } from '@/lib/queries'
-import type { CategoryRow } from '@/lib/queries'
+import type { CategoryRow, StockRow } from '@/lib/queries'
+import type { Market } from '@/types/database'
 
 type Tab = 'account' | 'trade' | 'display'
 
@@ -219,6 +225,7 @@ function TradeTab() {
   }
 
   return (
+    <>
     <section className="card-shadow rounded-2xl bg-card p-5">
       <h2 className="mb-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">카테고리 관리</h2>
       <p className="mb-4 text-xs text-muted-foreground">
@@ -345,6 +352,254 @@ function TradeTab() {
         </button>
       )}
     </section>
+    <StockManagement />
+    </>
+  )
+}
+
+// ─── 종목 관리 ───────────────────────────────────────────────────────────────
+
+type StockFilter = 'all' | 'us' | 'kospi' | 'kosdaq'
+
+function StockManagement() {
+  const [stocks, setStocks] = useState<StockRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState<StockFilter>('all')
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [confirmMarket, setConfirmMarket] = useState<{ id: string; name: string; from: Market; to: Market } | null>(null)
+
+  useEffect(() => { loadStocks() }, [])
+
+  async function loadStocks() {
+    try {
+      const all = await fetchAllStocks()
+      setStocks(all)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filtered = stocks.filter(s => {
+    if (filter === 'us') return s.market === 'US'
+    if (filter === 'kospi') return s.market === 'KR'
+    if (filter === 'kosdaq') return s.market === 'KR_KQ'
+    return true
+  })
+
+  const usCount = stocks.filter(s => s.market === 'US').length
+  const kospiCount = stocks.filter(s => s.market === 'KR').length
+  const kosdaqCount = stocks.filter(s => s.market === 'KR_KQ').length
+
+  async function handleMarketChange(stock: StockRow, newMarket: Market) {
+    if (stock.market === newMarket) return
+    setConfirmMarket({ id: stock.stockId, name: stock.stockName, from: stock.market, to: newMarket })
+  }
+
+  async function executeMarketChange() {
+    if (!confirmMarket) return
+    try {
+      await updateStockMarket(confirmMarket.id, confirmMarket.to)
+      await loadStocks()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '시장 변경 실패')
+    } finally {
+      setConfirmMarket(null)
+    }
+  }
+
+  async function handleDelete(stock: StockRow) {
+    if (stock.isHolding && stock.netQty > 0) {
+      alert(`보유 중인 종목(${stock.netQty}주)은 삭제할 수 없습니다.`)
+      return
+    }
+    setConfirmDelete(stock.stockId)
+  }
+
+  async function executeDelete() {
+    if (!confirmDelete) return
+    try {
+      const count = await countTradesByStock(confirmDelete)
+      if (count > 0) {
+        alert(`이 종목에 ${count}건의 매매 기록이 있어 삭제할 수 없습니다.`)
+        return
+      }
+      await deleteStock(confirmDelete)
+      await loadStocks()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '삭제 실패')
+    } finally {
+      setConfirmDelete(null)
+    }
+  }
+
+  if (loading) {
+    return (
+      <section className="card-shadow rounded-2xl bg-card p-5">
+        <h2 className="mb-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">종목 관리</h2>
+        <div className="flex items-center justify-center py-8">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-muted border-t-primary" />
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <>
+      <section className="card-shadow rounded-2xl bg-card p-5">
+        <h2 className="mb-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">종목 관리</h2>
+        <p className="mb-4 text-xs text-muted-foreground">
+          등록된 종목을 관리합니다. 한국 종목은 시장(코스피/코스닥) 변경이 가능합니다.
+        </p>
+
+        {stocks.length === 0 ? (
+          <p className="py-6 text-center text-xs text-muted-foreground">등록된 종목이 없습니다.</p>
+        ) : (
+          <>
+            {/* 필터 */}
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              {([
+                { key: 'all' as const, label: `전체 (${stocks.length})` },
+                { key: 'us' as const, label: `미국 (${usCount})` },
+                { key: 'kospi' as const, label: `코스피 (${kospiCount})` },
+                { key: 'kosdaq' as const, label: `코스닥 (${kosdaqCount})` },
+              ]).map(f => (
+                <button
+                  key={f.key}
+                  onClick={() => setFilter(f.key)}
+                  className={`rounded-2xl px-3 py-1.5 text-[11px] font-semibold transition-colors ${
+                    filter === f.key
+                      ? 'bg-foreground text-background'
+                      : 'border border-border bg-transparent text-muted-foreground'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {/* 종목 목록 */}
+            <div className="flex flex-col gap-2">
+              {filtered.map(s => (
+                <div key={s.stockId} className="flex items-center gap-2.5 rounded-xl bg-muted/30 px-3 py-2.5">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">{s.stockName}</p>
+                    <p className="text-[11px] text-muted-foreground" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {s.ticker}
+                      {s.isHolding && s.netQty > 0 && (
+                        <span className="ml-1.5 text-primary">
+                          {s.netQty % 1 === 0 ? s.netQty : s.netQty.toFixed(4)}주 보유
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  {s.market === 'US' ? (
+                    <span className="rounded-lg border border-muted-foreground/20 px-2 py-1 text-[11px] font-bold text-muted-foreground">
+                      미국
+                    </span>
+                  ) : (
+                    <select
+                      value={s.market}
+                      onChange={e => handleMarketChange(s, e.target.value as Market)}
+                      className={`rounded-lg border px-2 py-1 text-[11px] font-bold outline-none appearance-none bg-card cursor-pointer ${
+                        s.market === 'KR'
+                          ? 'border-primary/30 text-primary'
+                          : 'border-blue-400/30 text-blue-500'
+                      }`}
+                      style={{
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23999' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")`,
+                        backgroundRepeat: 'no-repeat',
+                        backgroundPosition: 'right 6px center',
+                        paddingRight: '22px',
+                      }}
+                    >
+                      <option value="KR">코스피</option>
+                      <option value="KR_KQ">코스닥</option>
+                    </select>
+                  )}
+                  <button
+                    onClick={() => handleDelete(s)}
+                    className={`${
+                      s.isHolding && s.netQty > 0
+                        ? 'text-muted-foreground/30 cursor-not-allowed'
+                        : 'text-muted-foreground hover:text-destructive'
+                    }`}
+                    disabled={s.isHolding && s.netQty > 0}
+                    title={s.isHolding && s.netQty > 0 ? '보유 중인 종목은 삭제할 수 없습니다' : '종목 삭제'}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* 시장 변경 확인 다이얼로그 */}
+      {confirmMarket && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setConfirmMarket(null)}>
+          <div className="mx-4 w-full max-w-xs rounded-2xl bg-card p-6 text-center shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="mb-2 text-base font-bold text-foreground">시장 변경</h3>
+            <p className="mb-4 text-sm text-muted-foreground leading-relaxed">
+              <strong className="text-foreground">{confirmMarket.name}</strong>의 시장을
+              <br />
+              <span className={confirmMarket.from === 'KR' ? 'font-semibold text-primary' : 'font-semibold text-blue-500'}>
+                {confirmMarket.from === 'KR' ? '코스피' : '코스닥'}
+              </span>
+              {' → '}
+              <span className={confirmMarket.to === 'KR' ? 'font-semibold text-primary' : 'font-semibold text-blue-500'}>
+                {confirmMarket.to === 'KR' ? '코스피' : '코스닥'}
+              </span>
+              (으)로 변경합니다.
+              <br /><br />
+              시세 조회 기준이 변경됩니다.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmMarket(null)}
+                className="flex-1 rounded-xl bg-muted py-2.5 text-sm font-semibold text-muted-foreground"
+              >
+                취소
+              </button>
+              <button
+                onClick={executeMarketChange}
+                className="flex-1 rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground"
+              >
+                변경
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 삭제 확인 다이얼로그 */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setConfirmDelete(null)}>
+          <div className="mx-4 w-full max-w-xs rounded-2xl bg-card p-6 text-center shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="mb-2 text-base font-bold text-foreground">종목 삭제</h3>
+            <p className="mb-4 text-sm text-muted-foreground">
+              이 종목을 삭제하시겠습니까?<br />매매 기록이 있으면 삭제할 수 없습니다.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="flex-1 rounded-xl bg-muted py-2.5 text-sm font-semibold text-muted-foreground"
+              >
+                취소
+              </button>
+              <button
+                onClick={executeDelete}
+                className="flex-1 rounded-xl bg-destructive py-2.5 text-sm font-semibold text-destructive-foreground"
+              >
+                삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 

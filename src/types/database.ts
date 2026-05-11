@@ -1,6 +1,6 @@
 // Supabase 데이터베이스 타입 정의 (design.md 4.1)
 
-export type Market = 'US' | 'KR'
+export type Market = 'US' | 'KR' | 'KR_KQ'
 export type Currency = 'KRW' | 'USD'
 export type TradeType = 'buy' | 'sell'
 export type CategoryType = 'buy' | 'sell' | 'both'

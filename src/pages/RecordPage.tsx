@@ -11,14 +11,17 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { upsertStock, insertTrade, fetchAllStocks, fetchCategories } from '@/lib/queries'
 import type { StockRow, CategoryOption } from '@/lib/queries'
+import type { Market } from '@/types/database'
 
 type TradeType = 'buy' | 'sell'
-type Market = 'US' | 'KR'
+type BaseMarket = 'US' | 'KR'
 
 export function RecordPage() {
   const { user } = useAuth()
   const [tradeType, setTradeType]               = useState<TradeType>('buy')
-  const [market, setMarket]                     = useState<Market>('US')
+  const [baseMarket, setBaseMarket]             = useState<BaseMarket>('US')
+  const [subMarket, setSubMarket]               = useState<'KR' | 'KR_KQ'>('KR')
+  const market: Market = baseMarket === 'US' ? 'US' : subMarket
   const [date, setDate]                         = useState<Date>(new Date())
   const [calendarOpen, setCalendarOpen]         = useState(false)
   const [ticker, setTicker]                     = useState('')
@@ -47,12 +50,12 @@ export function RecordPage() {
   const totalAmount =
     quantity && price
       ? (parseFloat(quantity) * parseFloat(price)).toLocaleString(
-          market === 'KR' ? 'ko-KR' : 'en-US',
+          market === 'US' ? 'en-US' : 'ko-KR',
           { maximumFractionDigits: 2 }
         )
       : null
 
-  const selectedStockData = allStocks.find(s => s.ticker === ticker)
+  const selectedStockData = allStocks.find(s => s.ticker === ticker && s.market === market)
   const maxSellQty = !isBuy && selectedStockData?.isHolding ? selectedStockData.netQty : undefined
 
   async function openStockSheet() {
@@ -66,6 +69,8 @@ export function RecordPage() {
   function selectStock(stock: StockRow) {
     setTicker(stock.ticker)
     setStockName(stock.stockName)
+    if (stock.market === 'KR_KQ') setSubMarket('KR_KQ')
+    else if (stock.market === 'KR') setSubMarket('KR')
     setQuantity('')
     setStockSheetOpen(false)
   }
@@ -176,23 +181,55 @@ export function RecordPage() {
             </SheetContent>
           </Sheet>
 
-          {(['US', 'KR'] as Market[]).map((m) => (
+          {(['US', 'KR'] as BaseMarket[]).map((m) => (
             <button
               key={m}
               type="button"
-              onClick={() => { setMarket(m); setAllStocks([]) }}
+              onClick={() => { setBaseMarket(m); setSubMarket('KR'); setAllStocks([]) }}
               className={cn(
                 'flex shrink-0 flex-col items-center justify-center rounded-xl border px-3 py-1.5 transition-all',
-                market === m ? 'border-primary bg-primary/10' : 'border-border bg-card'
+                baseMarket === m ? 'border-primary bg-primary/10' : 'border-border bg-card'
               )}
             >
               <span className="text-lg leading-tight">{m === 'US' ? '🇺🇸' : '🇰🇷'}</span>
-              <span className={cn('text-[10px] font-semibold leading-tight', market === m ? 'text-primary' : 'text-muted-foreground')}>
+              <span className={cn('text-[10px] font-semibold leading-tight', baseMarket === m ? 'text-primary' : 'text-muted-foreground')}>
                 {m === 'US' ? '미국' : '한국'}
               </span>
             </button>
           ))}
         </div>
+
+        {/* ── 코스피/코스닥 하위 선택 (한국 시장만) ── */}
+        {baseMarket === 'KR' && (
+          <div className="flex gap-2">
+            {([
+              { key: 'KR' as const, label: '코스피', sub: 'KOSPI' },
+              { key: 'KR_KQ' as const, label: '코스닥', sub: 'KOSDAQ' },
+            ]).map((s) => (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => setSubMarket(s.key)}
+                className={cn(
+                  'rounded-lg border-[1.5px] px-3 py-1.5 text-xs font-bold transition-all',
+                  subMarket === s.key
+                    ? s.key === 'KR'
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-blue-500 bg-blue-500 text-white'
+                    : 'border-border bg-card text-muted-foreground'
+                )}
+              >
+                {s.label}
+                <span className={cn(
+                  'ml-1 text-[10px] font-medium',
+                  subMarket === s.key ? 'opacity-70' : 'opacity-50'
+                )}>
+                  {s.sub}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* ── 종목 입력 ── */}
         {inputMode === 'select' ? (
@@ -316,7 +353,7 @@ export function RecordPage() {
                 총 {isBuy ? '매수' : '매도'}금액
               </span>
               <span className={cn('text-xl font-extrabold tabular', isBuy ? 'text-buy' : 'text-sell')}>
-                {market === 'US' ? '$' : ''}{totalAmount}{market === 'KR' ? ' 원' : ''}
+                {market === 'US' ? '$' : ''}{totalAmount}{market !== 'US' ? ' 원' : ''}
               </span>
             </div>
           )}
@@ -401,14 +438,16 @@ export function RecordPage() {
           ) : (
             <div className="mt-2 flex flex-col divide-y divide-border px-4">
               {(() => {
-                const filtered = allStocks.filter(s => s.market === market)
+                const filtered = allStocks.filter(s =>
+                    market === 'US' ? s.market === 'US' : s.market.startsWith('KR')
+                  )
                 const list = isBuy ? filtered : filtered.filter(s => s.isHolding)
                 if (list.length === 0) {
                   return (
                     <p className="py-8 text-center text-sm text-muted-foreground">
                       {isBuy
-                        ? `${market === 'KR' ? '한국' : '미국'} 시장에 등록된 종목이 없습니다`
-                        : `${market === 'KR' ? '한국' : '미국'} 시장에 보유 종목이 없습니다`}
+                        ? `${baseMarket === 'KR' ? '한국' : '미국'} 시장에 등록된 종목이 없습니다`
+                        : `${baseMarket === 'KR' ? '한국' : '미국'} 시장에 보유 종목이 없습니다`}
                     </p>
                   )
                 }
@@ -422,7 +461,9 @@ export function RecordPage() {
                     <div className="flex-1">
                       <p className="text-sm font-semibold text-foreground">{s.stockName}</p>
                       <p className="text-xs text-muted-foreground">
-                        {s.ticker} · {s.market === 'KR' ? '🇰🇷' : '🇺🇸'} ·{' '}
+                        {s.ticker} · {s.market.startsWith('KR') ? '🇰🇷' : '🇺🇸'}
+                        {s.market === 'KR_KQ' && <span className="ml-0.5 text-blue-500 font-semibold">코스닥</span>}
+                        {' · '}
                         {s.isHolding
                           ? `🟢 보유 ${s.netQty % 1 === 0 ? s.netQty : s.netQty.toFixed(4)}주`
                           : '⚪ 과거 거래'}
@@ -461,7 +502,7 @@ export function RecordPage() {
                 총 {isBuy ? '매수' : '매도'}금액
               </div>
               <div className={cn('text-base font-extrabold tabular', isBuy ? 'text-buy' : 'text-sell')}>
-                {market === 'US' ? '$' : ''}{totalAmount}{market === 'KR' ? ' 원' : ''}
+                {market === 'US' ? '$' : ''}{totalAmount}{market !== 'US' ? ' 원' : ''}
               </div>
             </div>
           ) : (

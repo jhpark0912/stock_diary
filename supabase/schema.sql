@@ -10,9 +10,9 @@ CREATE TABLE IF NOT EXISTS public.stocks (
   user_id    UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   ticker     TEXT NOT NULL,
   stock_name TEXT NOT NULL,
-  market     TEXT NOT NULL CHECK (market IN ('US', 'KR')),
+  market     TEXT NOT NULL CHECK (market IN ('US', 'KR', 'KR_KQ')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (user_id, ticker)
+  UNIQUE (user_id, ticker, market)
 );
 
 -- 2. categories (매매 사유 카테고리)

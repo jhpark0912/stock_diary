@@ -170,7 +170,7 @@ function RealizedListItem({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           {showFlag && (
-            <span className="text-[11px]">{item.market === 'KR' ? '🇰🇷' : '🇺🇸'}</span>
+            <span className="text-[11px]">{item.market.startsWith('KR') ? '🇰🇷' : '🇺🇸'}</span>
           )}
           <span className="truncate text-[13px] font-semibold text-foreground">{item.stockName}</span>
           <span className="shrink-0 text-[10px] text-muted-foreground">{item.ticker}</span>
@@ -234,7 +234,7 @@ export function ReportPage() {
   // 탭 전환 시 더보기 상태 초기화
   useEffect(() => { setShowAll(false) }, [tab])
 
-  const krItems = items.filter(r => r.market === 'KR')
+  const krItems = items.filter(r => r.market.startsWith('KR'))
   const usItems = items.filter(r => r.market === 'US')
 
   const filtered = tab === 'all' ? items : tab === 'KR' ? krItems : usItems

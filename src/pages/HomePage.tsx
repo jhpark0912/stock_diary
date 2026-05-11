@@ -6,6 +6,7 @@ import { fetchHoldings, fetchRecentTrades, fetchRealizedReturns } from '@/lib/qu
 import type { HoldingRow, RecentTradeRow, RealizedReturnRow } from '@/lib/queries'
 import { useStockPrices } from '@/hooks/useStockPrices'
 import type { StockQuote } from '@/types/stockPrice'
+import { toYahooSymbol } from '@/lib/stockPrice'
 
 function formatUSD(val: number) {
   return `$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -64,7 +65,7 @@ function MarketSummaryCard({
   for (const h of filtered) {
     const cost = h.netQty * h.avgBuyPrice
     costBasis += cost
-    const yahooSym = h.market === 'KR' ? `${h.ticker}.KS` : h.ticker
+    const yahooSym = toYahooSymbol(h.ticker, h.market)
     const q = quotes[yahooSym]
     if (q) {
       currentValue += h.netQty * q.price
@@ -80,7 +81,7 @@ function MarketSummaryCard({
 
   // 장 상태
   const marketStates = filtered.map(h => {
-    const sym = h.market === 'KR' ? `${h.ticker}.KS` : h.ticker
+    const sym = toYahooSymbol(h.ticker, h.market)
     return quotes[sym]?.marketState
   }).filter(Boolean)
   const isOpen = marketStates.some(s => s === 'REGULAR')
@@ -155,14 +156,14 @@ function HoldingGroup({
 
   // 그룹 소계 (미실현 손익)
   const groupPnl = holdings.reduce((sum, h) => {
-    const sym = h.market === 'KR' ? `${h.ticker}.KS` : h.ticker
+    const sym = toYahooSymbol(h.ticker, h.market)
     const q   = quotes[sym]
     if (!q) return sum
     return sum + (q.price - h.avgBuyPrice) * h.netQty
   }, 0)
 
   const hasLiveGroup = holdings.some(h => {
-    const sym = h.market === 'KR' ? `${h.ticker}.KS` : h.ticker
+    const sym = toYahooSymbol(h.ticker, h.market)
     return !!quotes[sym]
   })
 
@@ -202,7 +203,7 @@ function HoldingCard({
   quotes: Record<string, StockQuote>
   realizedReturnMap: Map<string, RealizedReturnRow>
 }) {
-  const yahooSym  = h.market === 'KR' ? `${h.ticker}.KS` : h.ticker
+  const yahooSym  = toYahooSymbol(h.ticker, h.market)
   const q         = quotes[yahooSym]
   const color     = tickerColor(h.ticker)
   const badgeLabel = h.ticker.length <= 6 ? h.ticker : h.stockName.slice(0, 2)
@@ -282,17 +283,17 @@ export function HomePage() {
 
   // D 방향: 수익/손실 그룹핑
   const gainers  = holdings.filter(h => {
-    const sym = h.market === 'KR' ? `${h.ticker}.KS` : h.ticker
+    const sym = toYahooSymbol(h.ticker, h.market)
     const q   = quotes[sym]
     return q ? q.price >= h.avgBuyPrice : false
   })
   const losers   = holdings.filter(h => {
-    const sym = h.market === 'KR' ? `${h.ticker}.KS` : h.ticker
+    const sym = toYahooSymbol(h.ticker, h.market)
     const q   = quotes[sym]
     return q ? q.price < h.avgBuyPrice : false
   })
   const noQuote  = holdings.filter(h => {
-    const sym = h.market === 'KR' ? `${h.ticker}.KS` : h.ticker
+    const sym = toYahooSymbol(h.ticker, h.market)
     return !quotes[sym]
   })
   const hasQuotes = Object.keys(quotes).length > 0

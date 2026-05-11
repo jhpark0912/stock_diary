@@ -1,7 +1,8 @@
 import type { Market } from '@/types/database'
 import type { QuoteMap } from '@/types/stockPrice'
 
-function toYahooSymbol(ticker: string, market: Market): string {
+export function toYahooSymbol(ticker: string, market: Market): string {
+  if (market === 'KR_KQ') return `${ticker}.KQ`
   if (market === 'KR') return `${ticker}.KS`
   return ticker
 }

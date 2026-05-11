@@ -21,6 +21,7 @@ export async function upsertStock(
     .from('stocks')
     .select('id')
     .eq('ticker', ticker)
+    .eq('market', market)
     .maybeSingle()
 
   if (existing?.id) return existing.id as string
@@ -33,6 +34,29 @@ export async function upsertStock(
 
   if (error) throw new Error(error.message)
   return data.id as string
+}
+
+/** 종목 시장 변경 (KR ↔ KR_KQ) */
+export async function updateStockMarket(id: string, market: Market): Promise<void> {
+  const { error } = await db.from('stocks').update({ market }).eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+/** 종목 삭제 (매매 기록이 있으면 DB에서 RESTRICT로 실패) */
+export async function deleteStock(id: string): Promise<void> {
+  const { error } = await db.from('stocks').delete().eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+/** 종목을 참조하는 거래 건수 조회 */
+export async function countTradesByStock(stockId: string): Promise<number> {
+  const { count, error } = await db
+    .from('trades')
+    .select('id', { count: 'exact', head: true })
+    .eq('stock_id', stockId)
+
+  if (error) throw new Error(error.message)
+  return count ?? 0
 }
 
 export interface CategoryOption {
@@ -301,7 +325,7 @@ export async function fetchAllStocks(): Promise<StockRow[]> {
         ticker:    s.ticker,
         stockName: s.stock_name,
         market:    s.market as Market,
-        currency:  (s.market === 'KR' ? 'KRW' : 'USD') as Currency,
+        currency:  (s.market.startsWith('KR') ? 'KRW' : 'USD') as Currency,
         isHolding: !!holding,
         netQty:    holding?.netQty ?? 0,
       }
