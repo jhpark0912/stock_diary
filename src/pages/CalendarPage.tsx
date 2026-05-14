@@ -52,6 +52,12 @@ function formatAmount(t: MonthTradeRow) {
     : `${total.toLocaleString('ko-KR')}원`
 }
 
+function formatPrice(price: number, currency: 'KRW' | 'USD') {
+  return currency === 'USD'
+    ? `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : `${price.toLocaleString('ko-KR')}원`
+}
+
 export function CalendarPage() {
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
@@ -305,7 +311,7 @@ export function CalendarPage() {
                                   <span className="text-xs text-muted-foreground">{t.ticker}</span>
                                 </p>
                                 <p className="text-xs text-muted-foreground">
-                                  {t.qty % 1 === 0 ? t.qty : t.qty.toFixed(4)}주 · {t.categoryName ?? '—'}
+                                  {t.qty % 1 === 0 ? t.qty : t.qty.toFixed(4)}주 · {formatPrice(t.price, t.currency)} · {t.categoryName ?? '—'}
                                   {t.memo && (
                                     <span className="ml-1.5 text-muted-foreground/50">
                                       {expandedMemoId === t.id ? '▲' : '▼'}

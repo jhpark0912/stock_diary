@@ -553,7 +553,9 @@ export function HomePage() {
                         <p className="truncate text-sm font-medium text-foreground">
                           {t.stockName} <span className="text-xs text-muted-foreground">{t.ticker}</span>
                         </p>
-                        <p className="text-xs text-muted-foreground">{t.categoryName ?? '—'}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {t.qty % 1 === 0 ? t.qty : t.qty.toFixed(4)}주 · {formatCurrency(t.price, t.currency)} · {t.categoryName ?? '—'}
+                        </p>
                         {t.memo && (
                           <p className="mt-0.5 truncate text-xs text-muted-foreground/70 italic">{t.memo}</p>
                         )}
