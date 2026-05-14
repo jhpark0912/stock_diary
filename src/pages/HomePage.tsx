@@ -550,12 +550,11 @@ export function HomePage() {
                         {t.tradeType === 'buy' ? '매수' : '매도'}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <p className="truncate text-sm font-medium text-foreground">
-                          {t.stockName} <span className="text-xs text-muted-foreground">{t.ticker}</span>
+                        <p className="flex items-baseline gap-1 text-sm font-medium text-foreground">
+                          <span className="truncate">{t.stockName}</span>
+                          <span className="shrink-0 text-xs text-muted-foreground">{t.ticker}</span>
                         </p>
-                        <p className="text-xs text-muted-foreground">
-                          {t.qty % 1 === 0 ? t.qty : t.qty.toFixed(4)}주 · {formatCurrency(t.price, t.currency)} · {t.categoryName ?? '—'}
-                        </p>
+                        <p className="text-xs text-muted-foreground">{t.categoryName ?? '—'}</p>
                         {t.memo && (
                           <p className="mt-0.5 truncate text-xs text-muted-foreground/70 italic">{t.memo}</p>
                         )}
@@ -563,6 +562,9 @@ export function HomePage() {
                       <div className="shrink-0 text-right">
                         <p className="tabular text-sm font-medium text-foreground">
                           {formatCurrency(Math.round(t.qty * t.price), t.currency)}
+                        </p>
+                        <p className="tabular text-[11px] text-muted-foreground">
+                          {t.qty % 1 === 0 ? t.qty : t.qty.toFixed(4)}주 · {formatCurrency(t.price, t.currency)}
                         </p>
                         <p className="text-xs text-muted-foreground">{t.tradeDate}</p>
                       </div>
